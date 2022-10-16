@@ -4,8 +4,10 @@ import { EventEmitter, Readable } from 'stream';
 import { on } from 'events';
 
 export type Fields = Record<string, string>;
-export type FileArgs = [name: string, stream: Readable, info: busboy.FileInfo];
-export type Files = AsyncIterableIterator<FileArgs>;
+export type File = [name: string, stream: Readable, info: busboy.FileInfo];
+type MapCb<T> = (file: File, index: number) => T;
+export type AsyncIteratorFn = <T>(callback: MapCb<T>) => Promise<T[]>;
+export type FilesAsyncIterableIterator = AsyncIterableIterator<File> & { iterate: AsyncIteratorFn };
 
 /**
  * Or ?:
@@ -20,7 +22,7 @@ export type Files = AsyncIterableIterator<FileArgs>;
  */
 export async function parseFormData(request: IncomingMessage): Promise<{
   fields: Fields,
-  files: Files,
+  files: FilesAsyncIterableIterator,
 }> {
   const parser = busboy({ headers: request.headers });
 
@@ -52,9 +54,9 @@ function createFieldsPromise(ee: EventEmitter): Promise<Fields> {
   });
 }
 
-function createFilesIterator(ee: EventEmitter): Files {
+function createFilesIterator(ee: EventEmitter): FilesAsyncIterableIterator{
   const abortFiles = new AbortController();
-  const fileIterator: Files = on(ee, 'file', { signal: abortFiles.signal });
+  const fileIterator: AsyncIterableIterator<File> = on(ee, 'file', { signal: abortFiles.signal });
 
   ee
     .once('error', (error) => {
@@ -64,5 +66,17 @@ function createFilesIterator(ee: EventEmitter): Files {
       return fileIterator.return!();
     });
 
-  return fileIterator;
+  const iterate: AsyncIteratorFn = async <T>(callback: MapCb<T>) => {
+    let i = 0;
+    const results: T[] = [];
+
+    for await (const file of fileIterator) {
+      results.push(callback(file, i));
+      i += 1;
+    }
+
+    return results;
+  }
+
+  return Object.setPrototypeOf({ iterate }, fileIterator) as FilesAsyncIterableIterator;
 }
