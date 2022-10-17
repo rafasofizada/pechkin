@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Async `multipart/form-data` middleware",
   "scripts": {
-    "start": "tsc"
+    "build": "tsc"
   },
   "author": "Rafael Sofi-zada",
   "license": "MIT",
@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@types/busboy": "^1.5.0",
-    "@types/node": "^18.11.0"
+    "@types/node": "^18.11.0",
+    "typescript": "^4.8.4"
   }
 }

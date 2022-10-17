@@ -3,11 +3,12 @@ import { IncomingMessage } from 'http';
 import { EventEmitter, Readable } from 'stream';
 import { on } from 'events';
 
+import { SizeStreamFn } from './utils';
+
 export type Fields = Record<string, string>;
-export type File = [name: string, stream: Readable, info: busboy.FileInfo];
+export type File = [field: string, stream: Readable, info: busboy.FileInfo];
 type MapCb<T> = (file: File, index: number) => T;
 export type AsyncIteratorFn = <T>(callback: MapCb<T>) => Promise<T[]>;
-export type FilesAsyncIterableIterator = AsyncIterableIterator<File> & { iterate: AsyncIteratorFn };
 
 /**
  * Or ?:
@@ -22,12 +23,12 @@ export type FilesAsyncIterableIterator = AsyncIterableIterator<File> & { iterate
  */
 export async function parseFormData(request: IncomingMessage): Promise<{
   fields: Fields,
-  files: FilesAsyncIterableIterator,
+  files: FileIterator,
 }> {
   const parser = busboy({ headers: request.headers });
 
   const fields = createFieldsPromise(parser);
-  const files = createFilesIterator(parser);
+  const files = new FileIterator(parser);
   
   request.pipe(parser);
 
@@ -54,29 +55,66 @@ function createFieldsPromise(ee: EventEmitter): Promise<Fields> {
   });
 }
 
-function createFilesIterator(ee: EventEmitter): FilesAsyncIterableIterator{
-  const abortFiles = new AbortController();
-  const fileIterator: AsyncIterableIterator<File> = on(ee, 'file', { signal: abortFiles.signal });
+/**
+ * 1. Iterate
+ * 
+ * const files = new FileIterator(ee);
+ * 
+ * for await (const file of files) { ... }
+ * 
+ * 2. 
+ */
 
-  ee
-    .once('error', (error) => {
-      return abortFiles.abort(error);
-    })
-    .once('finish', () => { 
-      return fileIterator.return!();
-    });
+type Options = {
+  size: number;
+}
 
-  const iterate: AsyncIteratorFn = async <T>(callback: MapCb<T>) => {
-    let i = 0;
-    const results: T[] = [];
+class FileIterator {
+  private readonly iterator: AsyncIterableIterator<File>;
 
-    for await (const file of fileIterator) {
-      results.push(callback(file, i));
-      i += 1;
-    }
+  constructor(ee: EventEmitter) {
+    const abortFiles = new AbortController();
+    this.iterator = on(ee, 'file', { signal: abortFiles.signal });
 
-    return results;
+    ee
+      .once('error', (error) => {
+        return abortFiles.abort(error);
+      })
+      .once('finish', () => { 
+        return this.iterator.return!();
+      });
   }
 
-  return Object.setPrototypeOf({ iterate }, fileIterator) as FilesAsyncIterableIterator;
+  [Symbol.asyncIterator](): AsyncIterable<{ field: string, stream: Readable, size: Promise<number> } & busboy.FileInfo> {
+    const asyncIterator = this.iterator[Symbol.asyncIterator]();
+
+    // asyncIterator.next() returned by Events.on() accepts no args
+    // https://github.com/nodejs/node/blob/main/lib/events.js#L1017
+    const next = async () => {
+      const result = await asyncIterator.next();
+      
+      // === true necessary to narrow IteratorResult to IteratorYieldResult
+      // TODO: Report issue to TypeScript?
+      if (result.done === true) {
+        return result;
+      }
+
+      const { value: [field, stream, info] } = result;
+      const sizeStreamFn = SizeStreamFn();
+      const finalStream = stream.pipe(sizeStreamFn.stream);
+
+      // TODO: Typing
+      return {
+        field,
+        stream: finalStream,
+        size: sizeStreamFn.result,
+        ...info,
+      }
+    };
+    
+    return Object.setPrototypeOf(
+      { next },
+      asyncIterator,
+    )
+  }
 }
