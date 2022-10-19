@@ -21,14 +21,22 @@ export type AsyncIteratorFn = <T>(callback: MapCb<T>) => Promise<T[]>;
  *    +   files: files(),
  *    + };
  */
-export async function parseFormData(request: IncomingMessage): Promise<{
+export async function parseFormData(
+  request: IncomingMessage,
+  fileSizeLimit: number = Infinity,
+  underlyingParserConfig: busboy.BusboyConfig = {},
+): Promise<{
   fields: Fields,
   files: FileIterator,
 }> {
-  const parser = busboy({ headers: request.headers });
+  const headers = underlyingParserConfig.headers ?? request.headers;
+  const parser = busboy({
+    ...underlyingParserConfig,
+    headers
+  });
 
   const fields = createFieldsPromise(parser);
-  const files = new FileIterator(parser);
+  const files = new FileIterator(parser, fileSizeLimit);
   
   request.pipe(parser);
 
@@ -55,24 +63,10 @@ function createFieldsPromise(ee: EventEmitter): Promise<Fields> {
   });
 }
 
-/**
- * 1. Iterate
- * 
- * const files = new FileIterator(ee);
- * 
- * for await (const file of files) { ... }
- * 
- * 2. 
- */
-
-type Options = {
-  size: number;
-}
-
 class FileIterator {
   private readonly iterator: AsyncIterableIterator<File>;
 
-  constructor(ee: EventEmitter) {
+  constructor(ee: EventEmitter, private readonly fileSizeLimit: number = Infinity) {
     const abortFiles = new AbortController();
     this.iterator = on(ee, 'file', { signal: abortFiles.signal });
 
@@ -85,12 +79,12 @@ class FileIterator {
       });
   }
 
-  [Symbol.asyncIterator](): AsyncIterable<{ field: string, stream: Readable, size: Promise<number> } & busboy.FileInfo> {
+  [Symbol.asyncIterator](): AsyncIterator<{ field: string, stream: Readable, size: Promise<number> } & busboy.FileInfo> {
     const asyncIterator = this.iterator[Symbol.asyncIterator]();
 
-    // asyncIterator.next() returned by Events.on() accepts no args
-    // https://github.com/nodejs/node/blob/main/lib/events.js#L1017
     const next = async () => {
+      // asyncIterator.next() returned by Events.on() accepts no args
+      // https://github.com/nodejs/node/blob/main/lib/events.js#L1017
       const result = await asyncIterator.next();
       
       // === true necessary to narrow IteratorResult to IteratorYieldResult
@@ -100,17 +94,22 @@ class FileIterator {
       }
 
       const { value: [field, stream, info] } = result;
-      const sizeStreamFn = SizeStreamFn();
+      const sizeStreamFn = SizeStreamFn(this.fileSizeLimit);
       const finalStream = stream.pipe(sizeStreamFn.stream);
 
-      // TODO: Typing
       return {
-        field,
-        stream: finalStream,
-        size: sizeStreamFn.result,
-        ...info,
-      }
-    };
+        done: result.done,
+        value: {
+          field,
+          stream: finalStream,
+          size: new Promise((resolve, reject) => {
+            sizeStreamFn.on('byteLength', resolve);
+            sizeStreamFn.on('limit', reject)
+          }),
+          ...info,
+        }
+      };
+    }
     
     return Object.setPrototypeOf(
       { next },

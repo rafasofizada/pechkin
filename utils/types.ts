@@ -1,3 +1,7 @@
 import { Duplex } from "stream";
+import { EventConfig, TypeSafeEventEmitter } from "./TypeSafeEventEmitter";
 
-export type StreamFn<T> = { stream: Duplex, result: Promise<T> };
+export type StreamFn<EC extends EventConfig> = {
+  stream: Duplex,
+  on: TypeSafeEventEmitter<EC>['on']
+};

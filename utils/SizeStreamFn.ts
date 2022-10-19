@@ -1,28 +1,36 @@
-import { Duplex, EventEmitter, Readable } from 'stream';
+import { Duplex, Readable } from 'stream';
 
 import { StreamFn } from './types';
+import { TypeSafeEventEmitter } from './TypeSafeEventEmitter';
 
-export function SizeStreamFn(): StreamFn<number> {
-  const resultEventName = 'byteLength';
+const resultEvent = 'byteLength';
+const limitEvent = 'limit';
 
+export type SizeStreamEvents = {
+  [limitEvent]: { limit: number, byteLength: number },
+  [resultEvent]: number,
+};
+
+export function SizeStreamFn(limit: number = Infinity): StreamFn<SizeStreamEvents> {
   let byteLength = 0;
 
-  const ee = new EventEmitter();
+  const ee = new TypeSafeEventEmitter<SizeStreamEvents>();
 
   async function* generator (this: unknown, source: Readable) {
     for await (const chunk of source) {
       byteLength += chunk.byteLength;
+      
+      if (byteLength > limit) {
+        ee.emit(limitEvent, { limit, byteLength });
+      }
+
       yield chunk;
     }
 
-    ee.emit(resultEventName, byteLength);
+    ee.emit(resultEvent, byteLength);
   }
 
   const stream = Duplex.from(generator);
-  const result = new Promise<number>((resolve, reject) => {
-    ee.once(resultEventName, resolve);
-    stream.once('error', reject);
-  });
 
-  return { stream, result };
+  return { stream, on: ee.on.bind(ee) };
 }
