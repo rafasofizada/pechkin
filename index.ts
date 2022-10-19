@@ -23,7 +23,8 @@ export type AsyncIteratorFn = <T>(callback: MapCb<T>) => Promise<T[]>;
  */
 export async function parseFormData(
   request: IncomingMessage,
-  fileSizeLimit: number = Infinity,
+  baseFileSizeLimit: number = Infinity,
+  fieldFileSizeLimits: Record<string, number> = {},
   underlyingParserConfig: busboy.BusboyConfig = {},
 ): Promise<{
   fields: Fields,
@@ -36,7 +37,7 @@ export async function parseFormData(
   });
 
   const fields = createFieldsPromise(parser);
-  const files = new FileIterator(parser, fileSizeLimit);
+  const files = new FileIterator(parser, baseFileSizeLimit, fieldFileSizeLimits);
   
   request.pipe(parser);
 
@@ -66,11 +67,15 @@ function createFieldsPromise(ee: EventEmitter): Promise<Fields> {
 class FileIterator {
   private readonly iterator: AsyncIterableIterator<File>;
 
-  constructor(ee: EventEmitter, private readonly fileSizeLimit: number = Infinity) {
+  constructor(
+    parser: EventEmitter,
+    private readonly baseFileSizeLimit: number,
+    private readonly fieldFileSizeLimits: Record<string, number>,
+  ) {
     const abortFiles = new AbortController();
-    this.iterator = on(ee, 'file', { signal: abortFiles.signal });
+    this.iterator = on(parser, 'file', { signal: abortFiles.signal });
 
-    ee
+    parser
       .once('error', (error) => {
         return abortFiles.abort(error);
       })
@@ -94,7 +99,8 @@ class FileIterator {
       }
 
       const { value: [field, stream, info] } = result;
-      const sizeStreamFn = SizeStreamFn(this.fileSizeLimit);
+
+      const sizeStreamFn = SizeStreamFn(this.fieldFileSizeLimits[field] ?? this.baseFileSizeLimit);
       const finalStream = stream.pipe(sizeStreamFn.stream);
 
       return {
