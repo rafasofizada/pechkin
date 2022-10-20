@@ -1,59 +1,50 @@
 import * as busboy from 'busboy';
 import { IncomingMessage } from 'http';
-import { EventEmitter, Readable } from 'stream';
 import { on } from 'events';
 
-import { SizeStreamFn } from './utils';
+import { FileFieldController } from './utils';
+import { busboyConfig, CustomBusboyConfig } from './busboy-config';
+import { BusboyFile, DefaultField, Fields, FileFieldNameFilter, ParserDependency, PechkinFile, PerFieldFileConfig } from './types';
 
-export type Fields = Record<string, string>;
-export type File = [field: string, stream: Readable, info: busboy.FileInfo];
-type MapCb<T> = (file: File, index: number) => T;
-export type AsyncIteratorFn = <T>(callback: MapCb<T>) => Promise<T[]>;
-
-/**
- * Or ?:
- *    - const fields
- *    - const files
- * 
- *    + process.nextTick(() => request.pipe(parser));
- *    + return {
- *    +   fields: await fields(),
- *    +   files: files(),
- *    + };
- */
 export async function parseFormData(
   request: IncomingMessage,
-  baseFileSizeLimit: number = Infinity,
-  fieldFileSizeLimits: Record<string, number> = {},
-  underlyingParserConfig: busboy.BusboyConfig = {},
+  perFieldFileConfig: PerFieldFileConfig = defaultPerFieldFileConfig,
+  fileFieldNameFilter: FileFieldNameFilter = () => true,
+  busboySpecificConfig?: CustomBusboyConfig,
 ): Promise<{
   fields: Fields,
   files: FileIterator,
 }> {
-  const headers = underlyingParserConfig.headers ?? request.headers;
-  const parser = busboy({
-    ...underlyingParserConfig,
-    headers
-  });
+  const parser = busboy(
+    busboyConfig(request.headers, busboySpecificConfig)
+  );
 
-  const fields = createFieldsPromise(parser);
-  const files = new FileIterator(parser, baseFileSizeLimit, fieldFileSizeLimits);
+  const fields = FieldsPromise(parser);
+  const files = new FileIterator(parser, perFieldFileConfig, fileFieldNameFilter);
   
   request.pipe(parser);
 
   return { fields: await fields, files };
 }
 
-function createFieldsPromise(ee: EventEmitter): Promise<Fields> {
+function FieldsPromise(parser: ParserDependency): Promise<Fields> {
   return new Promise<Fields>((resolve, reject) => {
     const fields: Fields = {};
 
-    ee
+    parser
       .on('field', (name: string, value: string, info: busboy.FieldInfo) => {
         fields[name] = value;
       })
       .once('file', () => {
         return resolve(fields);
+      })
+      .once('fieldsLimit', () => {
+        // TODO: Error
+        return reject("Exceeded field count limit.");
+      })
+      .once('partsLimit', () => {
+        // TODO: Error
+        return reject("Exceeded part count limit.");
       })
       .once('error', (error) => {
         return reject(error);
@@ -65,29 +56,38 @@ function createFieldsPromise(ee: EventEmitter): Promise<Fields> {
 }
 
 class FileIterator {
-  private readonly iterator: AsyncIterableIterator<File>;
+  private readonly iterator: AsyncIterableIterator<BusboyFile>;
 
   constructor(
-    parser: EventEmitter,
-    private readonly baseFileSizeLimit: number,
-    private readonly fieldFileSizeLimits: Record<string, number>,
+    parser: ParserDependency,
+    private readonly perFieldFileConfig: PerFieldFileConfig,
+    private readonly fileFieldNameFilter: FileFieldNameFilter,
   ) {
     const abortFiles = new AbortController();
+    // TODO: on() source code, determine role and necessity of AbortController
     this.iterator = on(parser, 'file', { signal: abortFiles.signal });
 
     parser
+      .once('filesLimit', () => {
+        // TODO: Error
+        return abortFiles.abort("Exceeded files count limit.");
+      })
+      .once('partsLimit', () => {
+        // TODO: Error
+        return abortFiles.abort("Exceeded part count limit.");
+      })
       .once('error', (error) => {
-        return abortFiles.abort(error);
+        return abortFiles.abort(error.message);
       })
       .once('finish', () => { 
         return this.iterator.return!();
       });
   }
 
-  [Symbol.asyncIterator](): AsyncIterator<{ field: string, stream: Readable, size: Promise<number> } & busboy.FileInfo> {
+  [Symbol.asyncIterator](): AsyncIterator<PechkinFile> {
     const asyncIterator = this.iterator[Symbol.asyncIterator]();
 
-    const next = async () => {
+    const next: AsyncIterator<PechkinFile>['next'] = async () => {
       // asyncIterator.next() returned by Events.on() accepts no args
       // https://github.com/nodejs/node/blob/main/lib/events.js#L1017
       const result = await asyncIterator.next();
@@ -95,25 +95,13 @@ class FileIterator {
       // === true necessary to narrow IteratorResult to IteratorYieldResult
       // TODO: Report issue to TypeScript?
       if (result.done === true) {
-        return result;
+        // if result.done === true, result.value === undefined
+        return { value: undefined, done: true };
       }
-
-      const { value: [field, stream, info] } = result;
-
-      const sizeStreamFn = SizeStreamFn(this.fieldFileSizeLimits[field] ?? this.baseFileSizeLimit);
-      const finalStream = stream.pipe(sizeStreamFn.stream);
 
       return {
         done: result.done,
-        value: {
-          field,
-          stream: finalStream,
-          size: new Promise((resolve, reject) => {
-            sizeStreamFn.on('byteLength', resolve);
-            sizeStreamFn.on('limit', reject)
-          }),
-          ...info,
-        }
+        value: this.processBusboyFile(result.value)
       };
     }
     
@@ -122,4 +110,18 @@ class FileIterator {
       asyncIterator,
     )
   }
+
+  private processBusboyFile(busboyFile: BusboyFile) {
+    const fileFieldConfig = this.perFieldFileConfig[busboyFile[0]] ?? this.perFieldFileConfig[DefaultField];
+    const fileFieldController = new FileFieldController(fileFieldConfig)
+
+    return fileFieldController.fromBusboyFile(busboyFile);
+  }
 }
+
+const defaultPerFieldFileConfig: PerFieldFileConfig = {
+  [DefaultField]: {
+    maxFileByteLength: 50 * 1024 * 1024, // 50 Mb
+    maxFileCount: 5,
+  }
+};

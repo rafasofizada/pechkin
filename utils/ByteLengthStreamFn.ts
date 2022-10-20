@@ -1,20 +1,20 @@
 import { Duplex, Readable } from 'stream';
 
-import { StreamFn } from './types';
+import { StreamFn } from './StreamFn';
 import { TypeSafeEventEmitter } from './TypeSafeEventEmitter';
 
 const resultEvent = 'byteLength';
 const limitEvent = 'limit';
 
-export type SizeStreamEvents = {
+export type ByteLengthStreamEvents = {
   [limitEvent]: { limit: number, byteLength: number },
   [resultEvent]: number,
 };
 
-export function SizeStreamFn(limit: number = Infinity): StreamFn<SizeStreamEvents> {
+export function ByteLengthStreamFn(limit: number = Infinity): StreamFn<ByteLengthStreamEvents> {
   let byteLength = 0;
 
-  const ee = new TypeSafeEventEmitter<SizeStreamEvents>();
+  const ee = new TypeSafeEventEmitter<ByteLengthStreamEvents>();
 
   async function* generator (this: unknown, source: Readable) {
     for await (const chunk of source) {
@@ -32,5 +32,5 @@ export function SizeStreamFn(limit: number = Infinity): StreamFn<SizeStreamEvent
 
   const stream = Duplex.from(generator);
 
-  return { stream, on: ee.on.bind(ee) };
+  return { stream, once: ee.once.bind(ee) };
 }
