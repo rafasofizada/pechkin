@@ -28,14 +28,14 @@ export class FileFieldController {
   }
 
   private byteLength(): { stream: Duplex, byteLength: Promise<number> } {
-    const { stream, once } = ByteLengthStreamFn(this.config.maxFileByteLength);
+    const { stream, events } = ByteLengthStreamFn(this.config.maxFileByteLength);
 
     return {
       stream,
       byteLength: new Promise((resolve, reject) => {
-        once('byteLength', resolve);
+        events.byteLength.then(resolve);
         // TODO: Error
-        once('limit', (payload) => reject(payload))
+        events.limit.then(reject);
       })
     }
   }

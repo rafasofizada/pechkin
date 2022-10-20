@@ -3,5 +3,5 @@ import { EventConfig, TypeSafeEventEmitter } from "./TypeSafeEventEmitter";
 
 export type StreamFn<EC extends EventConfig> = {
   stream: Duplex,
-  once: TypeSafeEventEmitter<EC>['once']
+  events: { [E in keyof EC]: Promise<EC[E]> }
 };

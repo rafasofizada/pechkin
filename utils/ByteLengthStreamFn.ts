@@ -16,6 +16,15 @@ export function ByteLengthStreamFn(limit: number = Infinity): StreamFn<ByteLengt
 
   const ee = new TypeSafeEventEmitter<ByteLengthStreamEvents>();
 
+  const events = {
+    [resultEvent]: new Promise<ByteLengthStreamEvents[typeof resultEvent]>((resolve) => {
+      ee.once(resultEvent, resolve);
+    }),
+    [limitEvent]: new Promise<ByteLengthStreamEvents[typeof limitEvent]>((resolve) => {
+      ee.on(limitEvent, resolve);
+    }),
+  }
+
   async function* generator (this: unknown, source: Readable) {
     for await (const chunk of source) {
       byteLength += chunk.byteLength;
@@ -32,5 +41,5 @@ export function ByteLengthStreamFn(limit: number = Infinity): StreamFn<ByteLengt
 
   const stream = Duplex.from(generator);
 
-  return { stream, once: ee.once.bind(ee) };
+  return { stream, events };
 }

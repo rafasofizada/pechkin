@@ -13,6 +13,10 @@ export class TypeSafeEventEmitter<EC extends EventConfig> {
     }
   }
 
+  on<E extends keyof EC>(event: E, listener: (payload: EC[E]) => void): void {
+    this.ee.on(event as string, listener);
+  }
+
   once<E extends keyof EC>(event: E, listener: (payload: EC[E]) => void): void {
     this.ee.once(event as string, listener);
   }
