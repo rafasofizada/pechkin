@@ -1,29 +1,32 @@
+import { on } from 'events';
 import * as busboy from 'busboy';
 import { IncomingMessage } from 'http';
-import { on } from 'events';
 
-import { FileFieldController } from './utils';
-import { busboyConfig, CustomBusboyConfig } from './busboy-config';
-import { BusboyFile, DefaultField, Fields, FileFieldNameFilter, ParserDependency, PechkinFile, PerFieldFileConfig } from './types';
+import { FileHandler } from './utils';
+import { Restrictions, restrictionsToBusboyLimits } from './restrictions';
+import { BusboyFile, Fields, ParserDependency, PechkinFile } from './types';
 
+// TODO: Runtime checks, runtime config check
 export async function parseFormData(
   request: IncomingMessage,
-  perFieldFileConfig: PerFieldFileConfig = defaultPerFieldFileConfig,
-  fileFieldNameFilter: FileFieldNameFilter = () => true,
-  busboySpecificConfig?: CustomBusboyConfig,
+  restrictions: Restrictions,
+  busboyConfig: busboy.BusboyConfig
 ): Promise<{
   fields: Fields,
   files: FileIterator,
 }> {
-  const parser = busboy(
-    busboyConfig(request.headers, busboySpecificConfig)
-  );
+  const parser = busboy({
+    headers: request.headers,
+    ...busboyConfig,
+    limits: restrictionsToBusboyLimits(restrictions)
+  });
 
   const fields = FieldsPromise(parser);
-  const files = new FileIterator(parser, perFieldFileConfig, fileFieldNameFilter);
+  const files = new FileIterator(parser, restrictions);
   
   request.pipe(parser);
 
+  // Don't throw on rejections, just return typed Error class
   return { fields: await fields, files };
 }
 
@@ -38,13 +41,13 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
       .once('file', () => {
         return resolve(fields);
       })
-      .once('fieldsLimit', () => {
-        // TODO: Error
-        return reject("Exceeded field count limit.");
-      })
       .once('partsLimit', () => {
         // TODO: Error
         return reject("Exceeded part count limit.");
+      })
+      .once('fieldsLimit', () => {
+        // TODO: Error
+        return reject("Exceeded field count limit.");
       })
       .once('error', (error) => {
         return reject(error);
@@ -57,24 +60,24 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
 
 class FileIterator {
   private readonly iterator: AsyncIterableIterator<BusboyFile>;
+  private readonly fileHandlers: Record<string, FileHandler> = {};
 
   constructor(
     parser: ParserDependency,
-    private readonly perFieldFileConfig: PerFieldFileConfig,
-    private readonly fileFieldNameFilter: FileFieldNameFilter,
+    private readonly restrictions: Restrictions,
   ) {
     const abortFiles = new AbortController();
     // TODO: on() source code, determine role and necessity of AbortController
     this.iterator = on(parser, 'file', { signal: abortFiles.signal });
 
     parser
-      .once('filesLimit', () => {
-        // TODO: Error
-        return abortFiles.abort("Exceeded files count limit.");
-      })
       .once('partsLimit', () => {
         // TODO: Error
         return abortFiles.abort("Exceeded part count limit.");
+      })
+      .once('filesLimit', () => {
+        // TODO: Error
+        return abortFiles.abort("Exceeded files count limit.");
       })
       .once('error', (error) => {
         return abortFiles.abort(error.message);
@@ -92,17 +95,12 @@ class FileIterator {
       // https://github.com/nodejs/node/blob/main/lib/events.js#L1017
       const result = await asyncIterator.next();
       
-      // === true necessary to narrow IteratorResult to IteratorYieldResult
-      // TODO: Report issue to TypeScript?
-      if (result.done === true) {
-        // if result.done === true, result.value === undefined
-        return { value: undefined, done: true };
-      }
-
       return {
         done: result.done,
-        value: this.processBusboyFile(result.value)
-      };
+        // === true necessary to narrow IteratorResult to IteratorYieldResult
+        // TODO: Research/report issue to TypeScript?
+        value: result.done === true ? undefined : this.handle(result.value)
+      }
     }
     
     return Object.setPrototypeOf(
@@ -111,17 +109,16 @@ class FileIterator {
     )
   }
 
-  private processBusboyFile(busboyFile: BusboyFile) {
-    const fileFieldConfig = this.perFieldFileConfig[busboyFile[0]] ?? this.perFieldFileConfig[DefaultField];
-    const fileFieldController = new FileFieldController(fileFieldConfig)
+  private handle([field, stream, info]: BusboyFile) {
+    this.fileHandlers[field] ??= new FileHandler(field, this.restrictions);
+    const fileHandler = this.fileHandlers[field];
+    
+    fileHandler.fileCountControl();
 
-    return fileFieldController.fromBusboyFile(busboyFile);
+    return {
+      field,
+      ...fileHandler.byteLength(stream),
+      ...info,
+    };
   }
 }
-
-const defaultPerFieldFileConfig: PerFieldFileConfig = {
-  [DefaultField]: {
-    maxFileByteLength: 50 * 1024 * 1024, // 50 Mb
-    maxFileCount: 5,
-  }
-};

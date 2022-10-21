@@ -13,15 +13,4 @@ export type PechkinFile = busboy.FileInfo & {
   byteLength: Promise<number>;
 };
 
-export const DefaultField: unique symbol = Symbol('DefaultField');
-
-export type FieldFileConfig = Partial<{
-  maxFileByteLength: number;
-  maxFileCount: number;
-}>;
-
-export type PerFieldFileConfig = Record<FieldSpecifier, FieldFileConfig>;
-
-export type FieldSpecifier = string | typeof DefaultField;
-
 export type FileFieldNameFilter = string[] | RegExp | ((field: string) => boolean);
