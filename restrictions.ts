@@ -15,28 +15,26 @@ export const DefaultField: unique symbol = Symbol('DefaultField');
 export type Restrictions = {
   general: 
     & {
-      maxTotalHeaderPairs?: number;         // OPTIONAL, DEFAULT BusboyLimits.headerPairs = 2000
-      maxFieldKeyByteLength?: number;       // OPTIONAL, DEFAULT BusboyLimits.fieldNameSize = 100 bytes
-      maxFieldValueByteLength?: number;     // OPTIONAL, DEFAULT BusboyLimits.fieldSize = 1 MB
-      maxFileByteLength: number;            // REQUIRED, DEFAULT BusboyLimits.fileSize = Infinity (!)
-      maxFileCountPerField?: number;        // OPTIONAL
+      maxTotalHeaderPairs?:       number;             // OPTIONAL, DEFAULT BusboyLimits.headerPairs = 2000
+      maxFieldKeyByteLength?:     number;             // OPTIONAL, DEFAULT BusboyLimits.fieldNameSize = 100 bytes
+      maxFieldValueByteLength?:   number;             // OPTIONAL, DEFAULT BusboyLimits.fieldSize = 1 MB
+      maxFileByteLength:          number;             // REQUIRED, DEFAULT BusboyLimits.fileSize = Infinity (!)
+      maxFileCountPerField?:      number;             // OPTIONAL
     }
     & (
       | {
-        maxTotalPartCount: number;          // REQUIRED, DEFAULT BusboyLimits.parts = Infinity (!)
-        maxTotalFileCount?: number;         // OPTIONAL
-        maxTotalFieldCount?: number;        // OPTIONAL
+        maxTotalPartCount:        number;             // REQUIRED, DEFAULT BusboyLimits.parts = Infinity (!)
+        maxTotalFileCount?:       number;             // OPTIONAL
+        maxTotalFieldCount?:      number;             // OPTIONAL
       }
-                                            // OR
+                                                      // OR
       | {
-        maxTotalPartCount?: number;         // OPTIONAL
-        maxTotalFileCount: number;          // REQUIRED, DEFAULT BusboyLimits.files = Infinity (!)
-        maxTotalFieldCount: number;         // REQUIRED, DEFAULT BusboyLimits.fields = Infinity (!)
+        maxTotalPartCount?:       number;             // OPTIONAL
+        maxTotalFileCount:        number;             // REQUIRED, DEFAULT BusboyLimits.files = Infinity (!)
+        maxTotalFieldCount:       number;             // REQUIRED, DEFAULT BusboyLimits.fields = Infinity (!)
       }
     );
-  fileOverride?: { 
-    [F: string]: FileRestrictions;           // OVERRIDES baseMaxField{ Key, Value }ByteLength
-  };
+  fileOverride?: Record<string, FileRestrictions>;    // OVERRIDES baseMaxField{ Key, Value }ByteLength
 };
 
 export function restrictionsToBusboyLimits(
