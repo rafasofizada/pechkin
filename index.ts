@@ -7,6 +7,7 @@ import { Restrictions, restrictionsToBusboyLimits } from './restrictions';
 import { BusboyFile, Fields, ParserDependency, PechkinFile } from './types';
 
 // TODO: Runtime checks, runtime config check
+// TODO: "throw (Promise.all) or ignore (Promise.allSettled)" configuration
 export async function parseFormData(
   request: IncomingMessage,
   restrictions: Restrictions,
@@ -112,7 +113,7 @@ class FileIterator {
   private handle([field, stream, info]: BusboyFile) {
     this.fileHandlers[field] ??= new FileHandler(field, this.restrictions);
     const fileHandler = this.fileHandlers[field];
-    
+
     fileHandler.fileCountControl();
 
     return {
