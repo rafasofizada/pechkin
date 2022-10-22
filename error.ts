@@ -1,32 +1,30 @@
 import { Restrictions } from './restrictions';
 
-export type PechkinError = {
-  restrictionType: GeneralRestrictionTypes;
-  busboyLimitType: RestrictedBusboyLimitTypes;
-  message: string;
-  stack: string;
-};
+export class PechkinRestrictionError extends Error {
+  public readonly restrictionType: GeneralRestrictionTypes;
+  public readonly busboyLimitType: RestrictedBusboyLimitTypes;
+  public readonly message: string;
+  public readonly stack: string;
 
-export function PechkinError(restrictionType: GeneralRestrictionTypes): PechkinError {
-  const formattedRestrictionType = restrictionType.split(/([A-Z][a-z]+)/) // split each Uppercase word
+  constructor(restrictionType: GeneralRestrictionTypes) {
+    const formattedRestrictionType = restrictionType.split(/([A-Z][a-z]+)/) // split each Uppercase word
       .slice(1) // remove "max"
       .filter(Boolean) // remove empty '' between Words
       .map(s => s.toLocaleLowerCase())
       .join(" ");
 
-  const error = {
-    restrictionType,
-    busboyLimitType: restrictionToLimit[restrictionType],
-    message:
-      `
-      Exceeded ${formattedRestrictionType} limit.
-      Corresponding Busboy configured value: Busboy.Limits[${this.busboyLimitType}].
-      `.replace(/\s+/g, " ")
-  };
+    const busboyLimitType = restrictionToLimit[restrictionType];
+    const message = `
+    Exceeded ${formattedRestrictionType} limit.
+    Corresponding Busboy configured value: Busboy.Limits[${busboyLimitType}].
+    `.replace(/\s+/g, " ");
 
-  Error.captureStackTrace(error, PechkinError); // error.stack property setter
-
-  return error as PechkinError;
+    super(message); // sets "this.stack"
+  
+    this.restrictionType = restrictionType;
+    this.busboyLimitType = busboyLimitType;
+    this.message = message;
+  }
 }
 
 type GeneralRestrictionTypes = Exclude<keyof Restrictions["general"], "maxFileCountPerField" | "maxTotalHeaderPairs" | "maxFileByteLength">;

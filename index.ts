@@ -3,7 +3,7 @@ import * as busboy from 'busboy';
 import { IncomingMessage } from 'http';
 
 import { FileHandler } from './FileHandler';
-import { PechkinError } from './error';
+import { PechkinRestrictionError } from './error';
 import { Restrictions, restrictionsToBusboyLimits } from './restrictions';
 import { BusboyFile, Fields, ParserDependency, PechkinFile } from './types';
 
@@ -39,6 +39,16 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
     parser
       // TODO: control "truncated" props
       .on('field', (name: string, value: string, info: busboy.FieldInfo) => {
+        if (info.nameTruncated) reject(new PechkinRestrictionError("maxFieldKeyByteLength"));
+        if (info.valueTruncated) reject(new PechkinRestrictionError("maxFieldValueByteLength"));
+
+        /* From Multer:
+          // Work around bug in Busboy (https://github.com/mscdex/busboy/issues/6)
+          if (limits && Object.prototype.hasOwnProperty.call(limits, 'fieldNameSize')) {
+            if (fieldname.length > limits.fieldNameSize) return abortWithCode('LIMIT_FIELD_KEY')
+          }
+        */
+
         fields[name] = value;
       })
       .once('file', () => {
@@ -46,11 +56,11 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
       })
       .once('partsLimit', () => {
         // TODO: Error
-        return reject(PechkinError("maxTotalPartCount"));
+        return reject(new PechkinRestrictionError("maxTotalPartCount"));
       })
       .once('fieldsLimit', () => {
         // TODO: Error
-        return reject(PechkinError("maxTotalFieldCount"));
+        return reject(new PechkinRestrictionError("maxTotalFieldCount"));
       })
       .once('error', (error) => {
         return reject(error);
@@ -70,17 +80,16 @@ class FileIterator {
     private readonly restrictions: Restrictions,
   ) {
     const abortFiles = new AbortController();
-    // TODO: on() source code, determine role and necessity of AbortController
     this.iterator = on(parser, 'file', { signal: abortFiles.signal });
 
     parser
       .once('partsLimit', () => {
         // TODO: Error
-        return abortFiles.abort(PechkinError("maxTotalPartCount"));
+        return abortFiles.abort(new PechkinRestrictionError("maxTotalPartCount"));
       })
       .once('filesLimit', () => {
         // TODO: Error
-        return abortFiles.abort(PechkinError("maxTotalFileCount"));
+        return abortFiles.abort(new PechkinRestrictionError("maxTotalFileCount"));
       })
       .once('error', (error) => {
         return abortFiles.abort(error);
