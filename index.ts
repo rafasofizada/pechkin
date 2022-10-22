@@ -3,7 +3,7 @@ import * as busboy from 'busboy';
 import { IncomingMessage } from 'http';
 
 import { FileHandler } from './FileHandler';
-import { PechkinErrorCtor, RestrictionErrorFactory } from './error';
+import { PechkinError } from './error';
 import { Restrictions, restrictionsToBusboyLimits } from './restrictions';
 import { BusboyFile, Fields, ParserDependency, PechkinFile } from './types';
 
@@ -23,7 +23,7 @@ export async function parseFormData(
     limits: restrictionsToBusboyLimits(restrictions)
   });
 
-  const fields = FieldsPromise(parser, restrictions);
+  const fields = FieldsPromise(parser);
   const files = new FileIterator(parser, restrictions);
   
   request.pipe(parser);
@@ -32,9 +32,7 @@ export async function parseFormData(
   return { fields: await fields, files };
 }
 
-function FieldsPromise(parser: ParserDependency, restrictions: Restrictions): Promise<Fields> {
-  const errorCtor = RestrictionErrorFactory(restrictions);
-
+function FieldsPromise(parser: ParserDependency): Promise<Fields> {
   return new Promise<Fields>((resolve, reject) => {
     const fields: Fields = {};
 
@@ -48,11 +46,11 @@ function FieldsPromise(parser: ParserDependency, restrictions: Restrictions): Pr
       })
       .once('partsLimit', () => {
         // TODO: Error
-        return reject(errorCtor("maxTotalPartCount"));
+        return reject(PechkinError("maxTotalPartCount"));
       })
       .once('fieldsLimit', () => {
         // TODO: Error
-        return reject(errorCtor("maxTotalFieldCount"));
+        return reject(PechkinError("maxTotalFieldCount"));
       })
       .once('error', (error) => {
         return reject(error);
@@ -66,14 +64,11 @@ function FieldsPromise(parser: ParserDependency, restrictions: Restrictions): Pr
 class FileIterator {
   private readonly iterator: AsyncIterableIterator<BusboyFile>;
   private readonly fileHandlers: Record<string, FileHandler> = {};
-  private readonly errorCtor: PechkinErrorCtor;
 
   constructor(
     parser: ParserDependency,
     private readonly restrictions: Restrictions,
   ) {
-    this.errorCtor = RestrictionErrorFactory(restrictions);
-
     const abortFiles = new AbortController();
     // TODO: on() source code, determine role and necessity of AbortController
     this.iterator = on(parser, 'file', { signal: abortFiles.signal });
@@ -81,11 +76,11 @@ class FileIterator {
     parser
       .once('partsLimit', () => {
         // TODO: Error
-        return abortFiles.abort(this.errorCtor("maxTotalPartCount"));
+        return abortFiles.abort(PechkinError("maxTotalPartCount"));
       })
       .once('filesLimit', () => {
         // TODO: Error
-        return abortFiles.abort(this.errorCtor("maxTotalFileCount"));
+        return abortFiles.abort(PechkinError("maxTotalFileCount"));
       })
       .once('error', (error) => {
         return abortFiles.abort(error);
