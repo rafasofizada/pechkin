@@ -1,7 +1,7 @@
 import { Duplex, Readable } from "stream";
 
-import { ByteLengthStreamFn } from '.';
-import { Restrictions } from '../restrictions';
+import { ByteLengthStreamFn } from './ByteLengthStreamFn';
+import { Restrictions } from './restrictions';
 
 
 export class FileHandler {

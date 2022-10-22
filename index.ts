@@ -2,7 +2,8 @@ import { on } from 'events';
 import * as busboy from 'busboy';
 import { IncomingMessage } from 'http';
 
-import { FileHandler } from './utils';
+import { FileHandler } from './FileHandler';
+import { PechkinErrorCtor, RestrictionErrorFactory } from './error';
 import { Restrictions, restrictionsToBusboyLimits } from './restrictions';
 import { BusboyFile, Fields, ParserDependency, PechkinFile } from './types';
 
@@ -11,18 +12,18 @@ import { BusboyFile, Fields, ParserDependency, PechkinFile } from './types';
 export async function parseFormData(
   request: IncomingMessage,
   restrictions: Restrictions,
-  busboyConfig: busboy.BusboyConfig
+  busboyConfig: Omit<busboy.BusboyConfig, 'headers' | 'limits'> = {}
 ): Promise<{
   fields: Fields,
   files: FileIterator,
 }> {
   const parser = busboy({
-    headers: request.headers,
     ...busboyConfig,
+    headers: request.headers,
     limits: restrictionsToBusboyLimits(restrictions)
   });
 
-  const fields = FieldsPromise(parser);
+  const fields = FieldsPromise(parser, restrictions);
   const files = new FileIterator(parser, restrictions);
   
   request.pipe(parser);
@@ -31,11 +32,14 @@ export async function parseFormData(
   return { fields: await fields, files };
 }
 
-function FieldsPromise(parser: ParserDependency): Promise<Fields> {
+function FieldsPromise(parser: ParserDependency, restrictions: Restrictions): Promise<Fields> {
+  const errorCtor = RestrictionErrorFactory(restrictions);
+
   return new Promise<Fields>((resolve, reject) => {
     const fields: Fields = {};
 
     parser
+      // TODO: control "truncated" props
       .on('field', (name: string, value: string, info: busboy.FieldInfo) => {
         fields[name] = value;
       })
@@ -44,11 +48,11 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
       })
       .once('partsLimit', () => {
         // TODO: Error
-        return reject("Exceeded part count limit.");
+        return reject(errorCtor("maxTotalPartCount"));
       })
       .once('fieldsLimit', () => {
         // TODO: Error
-        return reject("Exceeded field count limit.");
+        return reject(errorCtor("maxTotalFieldCount"));
       })
       .once('error', (error) => {
         return reject(error);
@@ -62,11 +66,14 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
 class FileIterator {
   private readonly iterator: AsyncIterableIterator<BusboyFile>;
   private readonly fileHandlers: Record<string, FileHandler> = {};
+  private readonly errorCtor: PechkinErrorCtor;
 
   constructor(
     parser: ParserDependency,
     private readonly restrictions: Restrictions,
   ) {
+    this.errorCtor = RestrictionErrorFactory(restrictions);
+
     const abortFiles = new AbortController();
     // TODO: on() source code, determine role and necessity of AbortController
     this.iterator = on(parser, 'file', { signal: abortFiles.signal });
@@ -74,14 +81,14 @@ class FileIterator {
     parser
       .once('partsLimit', () => {
         // TODO: Error
-        return abortFiles.abort("Exceeded part count limit.");
+        return abortFiles.abort(this.errorCtor("maxTotalPartCount"));
       })
       .once('filesLimit', () => {
         // TODO: Error
-        return abortFiles.abort("Exceeded files count limit.");
+        return abortFiles.abort(this.errorCtor("maxTotalFileCount"));
       })
       .once('error', (error) => {
-        return abortFiles.abort(error.message);
+        return abortFiles.abort(error);
       })
       .once('finish', () => { 
         return this.iterator.return!();
@@ -101,7 +108,7 @@ class FileIterator {
         // === true necessary to narrow IteratorResult to IteratorYieldResult
         // TODO: Research/report issue to TypeScript?
         value: result.done === true ? undefined : this.handle(result.value)
-      }
+      };
     }
     
     return Object.setPrototypeOf(

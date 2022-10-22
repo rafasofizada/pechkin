@@ -21,9 +21,16 @@ createServer(
             maxFileCount: 1
           }
         },
-        undefined,
-        { limits: { fields: 2, files: 4 } }
+        /image_\d+.(jpeg|png|jpg)/g,
+        {
+          preservePath: true,
+          limits: {
+            fields: 2,
+            files: 4
+          }
+        }
       );
+
 
       console.log(fields);
 

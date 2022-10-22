@@ -2,7 +2,7 @@ import { EventEmitter } from "events";
 
 export type EventConfig = Record<string, any>;
 
-export class TypeSafeEventEmitter<EC extends EventConfig> {
+export class SafeEventEmitter<EC extends EventConfig> {
   private readonly ee = new EventEmitter();
 
   emit<E extends keyof EC>(event: E, payload: EC[E]): void {
