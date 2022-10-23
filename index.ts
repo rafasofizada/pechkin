@@ -2,10 +2,11 @@ import { on } from 'events';
 import * as busboy from 'busboy';
 import { IncomingMessage } from 'http';
 
-import { FileHandler } from './FileHandler';
 import { FieldRestrictionError, TotalRestrictionError } from './error';
 import { Restrictions, restrictionsToBusboyLimits } from './restrictions';
 import { BusboyFile, Fields, ParserDependency, PechkinFile } from './types';
+import { PassThrough } from 'stream';
+import { trackStreamByteLength } from './ByteLengthStreamFn';
 
 // TODO: Runtime checks, runtime config check
 export async function parseFormData(
@@ -69,7 +70,7 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
 
 class FileIterator {
   private readonly iterator: AsyncIterableIterator<BusboyFile>;
-  private readonly fileHandlers: Record<string, FileHandler> = {};
+  private readonly fileCountPerField: Record<string, number> = {};
 
   constructor(
     parser: ParserDependency,
@@ -100,28 +101,79 @@ class FileIterator {
     const next: AsyncIterator<PechkinFile>['next'] = async () => {
       // asyncIterator.next() returned by Events.on() accepts no args
       // https://github.com/nodejs/node/blob/main/lib/events.js#L1017
-      const result = await asyncIterator.next();
+      const iterElement = await asyncIterator.next();
       
-      return {
-        done: result.done,
-        // === true necessary to narrow IteratorResult to IteratorYieldResult
+      try {
+        // === true to narrow down types
         // TODO: Research/report issue to TypeScript?
-        value: result.done === true ? undefined : this.handle(result.value)
-      };
+        if (iterElement.done === true) {
+          return { done: true, value: undefined };
+        }
+
+        const result = this.handle(iterElement.value);
+
+      } catch (error) {
+        if (error instanceof FieldRestrictionError && error.restrictionType === "maxFileCountPerField") {
+          
+        }
+      }
     }
     
     return { next, __proto__: asyncIterator } as AsyncIterator<PechkinFile>;
   }
 
-  private handle([field, stream, info]: BusboyFile) {
-    this.fileHandlers[field] ??= new FileHandler(field, this.restrictions);
-    const fileHandler = this.fileHandlers[field];
+  private handle([field, stream, info]: BusboyFile, throwOnExceededCountPerField: boolean = true): PechkinFile {
+    const maxFileByteLength =
+        this.restrictions.fileOverride?.[field]?.maxFileByteLength
+        ?? this.restrictions.general.maxFileByteLength
+        ?? Infinity;
 
-    fileHandler.fileCountControl();
+    const maxFileCount =
+        this.restrictions.fileOverride?.[field]?.maxFileCount
+        ?? this.restrictions.general.maxFileCountPerField
+        ?? Infinity;
+
+    this.fileCountPerField[field] ??= 0;
+    this.fileCountPerField[field] += 1;
+
+    // - curr: 0, max: 0
+    // - curr: 0, max: 1
+    // - curr: 1, max: 10
+    
+    if (this.fileCountPerField[field] > maxFileCount) {
+      stream.resume();
+
+      if (throwOnExceededCountPerField) {
+        throw new FieldRestrictionError("maxFileCountPerField", field, maxFileCount);
+      }
+
+      return {
+        field,
+        stream: null,
+        byteLength: Promise.resolve(NaN),
+        skipped: true,
+        ...info,
+      }
+    }
+
+    const wrappedStream: PassThrough = stream.pipe(new PassThrough());
+    
+    const byteLength = new Promise<number>((resolve, reject) => {
+      const onEvent = trackStreamByteLength(wrappedStream, maxFileByteLength);
+
+      onEvent('byteLength', (x) => resolve(x));
+      onEvent('maxByteLength', (errorPayload) => reject(new FieldRestrictionError(
+        "maxFileByteLength",
+        field,
+        `{ ${Object.entries(errorPayload).map(entry => entry.join(": ")).join(", ")} }`
+      )));
+    })
 
     return {
       field,
-      ...fileHandler.byteLength(stream),
+      stream: wrappedStream,
+      byteLength,
+      skipped: false,
       ...info,
     };
   }
