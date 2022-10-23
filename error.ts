@@ -12,7 +12,7 @@ class InternalError extends Error {
 
   constructor(
     restrictionType: RestrictionType,
-    public readonly configuredValue?: number
+    public readonly configurationInfo?: unknown
   ) {
     const formattedRestrictionType = restrictionType.split(/([A-Z][a-z]+)/) // split each Uppercase word
       .slice(1) // remove "max"
@@ -30,8 +30,8 @@ class InternalError extends Error {
       message += `\nCorresponding Busboy configuration option: Busboy.Limits[${this.busboyLimitType}].`
     }
 
-    if (this.configuredValue) {
-      message += `\nConfigured value: ${this.configuredValue}`;
+    if (this.configurationInfo) {
+      message += `\nConfiguration info: ${this.configurationInfo}`;
     }
 
     this.restrictionType = restrictionType;
@@ -44,8 +44,8 @@ class InternalError extends Error {
 }
 
 export class TotalRestrictionError extends InternalError {
-  constructor(totalRestrictionType: TotalRestrictionType, configuredValue?: number) {
-    super(totalRestrictionType, configuredValue);
+  constructor(totalRestrictionType: TotalRestrictionType, configurationInfo?: unknown) {
+    super(totalRestrictionType, configurationInfo);
   }
 }
 
@@ -53,9 +53,9 @@ export class FieldRestrictionError extends InternalError {
   constructor(
     fieldRestrictionType: FieldRestrictionType,
     public readonly field: string,
-    configuredValue?: number
+    configurationInfo?: unknown
   ) {
-    super(fieldRestrictionType, configuredValue);
+    super(fieldRestrictionType, configurationInfo);
 
     this.appendMessage(`Field: ${field}`);
   }
