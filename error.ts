@@ -1,38 +1,75 @@
 import { Restrictions } from './restrictions';
 
-export class PechkinRestrictionError extends Error {
-  public readonly restrictionType: GeneralRestrictionTypes;
-  public readonly busboyLimitType: RestrictedBusboyLimitTypes;
-  public readonly message: string;
+class InternalError extends Error {
+  public readonly restrictionType: RestrictionType;
+  public readonly busboyLimitType?: BusboyLimitWithRestrictionAnalogue;
   public readonly stack: string;
+  private _message: string;
 
-  constructor(restrictionType: GeneralRestrictionTypes) {
+  get message(): string {
+    return this._message;
+  }
+
+  constructor(
+    restrictionType: RestrictionType,
+    public readonly configuredValue?: number
+  ) {
     const formattedRestrictionType = restrictionType.split(/([A-Z][a-z]+)/) // split each Uppercase word
       .slice(1) // remove "max"
       .filter(Boolean) // remove empty '' between Words
       .map(s => s.toLocaleLowerCase())
       .join(" ");
 
+    let message = `Exceeded ${formattedRestrictionType} limit.`;
     const busboyLimitType = restrictionToLimit[restrictionType];
-    const message = `
-    Exceeded ${formattedRestrictionType} limit.
-    Corresponding Busboy configured value: Busboy.Limits[${busboyLimitType}].
-    `.replace(/\s+/g, " ");
 
     super(message); // sets "this.stack"
-  
+
+    if (busboyLimitType) {
+      this.busboyLimitType = busboyLimitType;
+      message += `\nCorresponding Busboy configuration option: Busboy.Limits[${this.busboyLimitType}].`
+    }
+
+    if (this.configuredValue) {
+      message += `\nConfigured value: ${this.configuredValue}`;
+    }
+
     this.restrictionType = restrictionType;
-    this.busboyLimitType = busboyLimitType;
-    this.message = message;
+    this._message = message;
+  }
+
+  protected appendMessage(s: string) {
+    this._message += "\n" + s;
   }
 }
 
-type GeneralRestrictionTypes = Exclude<keyof Restrictions["general"], "maxFileCountPerField" | "maxTotalHeaderPairs" | "maxFileByteLength">;
-type RestrictedBusboyLimitTypes = "parts" | "files" | "fields" | "fieldNameSize" | "fieldSize";
+export class TotalRestrictionError extends InternalError {
+  constructor(totalRestrictionType: TotalRestrictionType, configuredValue?: number) {
+    super(totalRestrictionType, configuredValue);
+  }
+}
+
+export class FieldRestrictionError extends InternalError {
+  constructor(
+    fieldRestrictionType: FieldRestrictionType,
+    public readonly field: string,
+    configuredValue?: number
+  ) {
+    super(fieldRestrictionType, configuredValue);
+
+    this.appendMessage(`Field: ${field}`);
+  }
+}
+
+type RestrictionType = Exclude<keyof Restrictions["general"], "maxTotalHeaderPairs">;
+type TotalRestrictionType = "maxTotalPartCount" | "maxTotalFileCount" | "maxTotalFieldCount";
+type FieldRestrictionType = Exclude<RestrictionType, TotalRestrictionType>;
+type RestrictionTypeWithBusboyAnalogue = Exclude<RestrictionType, "maxFileByteLength" | "maxFileCountPerField">;
+type BusboyLimitWithRestrictionAnalogue = "parts" | "files" | "fields" | "fieldNameSize" | "fieldSize";
 
 const restrictionToLimit: Record<
-  GeneralRestrictionTypes,
-  RestrictedBusboyLimitTypes
+  RestrictionTypeWithBusboyAnalogue,
+  BusboyLimitWithRestrictionAnalogue
 > = {
   maxTotalPartCount: "parts",
   maxTotalFileCount: "files",

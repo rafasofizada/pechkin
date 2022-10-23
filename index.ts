@@ -3,12 +3,11 @@ import * as busboy from 'busboy';
 import { IncomingMessage } from 'http';
 
 import { FileHandler } from './FileHandler';
-import { PechkinRestrictionError } from './error';
+import { FieldRestrictionError, TotalRestrictionError } from './error';
 import { Restrictions, restrictionsToBusboyLimits } from './restrictions';
 import { BusboyFile, Fields, ParserDependency, PechkinFile } from './types';
 
 // TODO: Runtime checks, runtime config check
-// TODO: "throw (Promise.all) or ignore (Promise.allSettled)" configuration
 export async function parseFormData(
   request: IncomingMessage,
   restrictions: Restrictions,
@@ -37,12 +36,11 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
     const fields: Fields = {};
 
     parser
-      // TODO: control "truncated" props
       .on('field', (name: string, value: string, info: busboy.FieldInfo) => {
-        if (info.nameTruncated) reject(new PechkinRestrictionError("maxFieldKeyByteLength"));
-        if (info.valueTruncated) reject(new PechkinRestrictionError("maxFieldValueByteLength"));
+        if (info.nameTruncated) reject(new FieldRestrictionError("maxFieldKeyByteLength", name));
+        if (info.valueTruncated) reject(new FieldRestrictionError("maxFieldValueByteLength", name));
 
-        /* From Multer:
+        /* TODO: From Multer:
           // Work around bug in Busboy (https://github.com/mscdex/busboy/issues/6)
           if (limits && Object.prototype.hasOwnProperty.call(limits, 'fieldNameSize')) {
             if (fieldname.length > limits.fieldNameSize) return abortWithCode('LIMIT_FIELD_KEY')
@@ -55,12 +53,10 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
         return resolve(fields);
       })
       .once('partsLimit', () => {
-        // TODO: Error
-        return reject(new PechkinRestrictionError("maxTotalPartCount"));
+        return reject(new TotalRestrictionError("maxTotalPartCount"));
       })
       .once('fieldsLimit', () => {
-        // TODO: Error
-        return reject(new PechkinRestrictionError("maxTotalFieldCount"));
+        return reject(new TotalRestrictionError("maxTotalFieldCount"));
       })
       .once('error', (error) => {
         return reject(error);
@@ -84,12 +80,11 @@ class FileIterator {
 
     parser
       .once('partsLimit', () => {
-        // TODO: Error
-        return abortFiles.abort(new PechkinRestrictionError("maxTotalPartCount"));
+        // TODO: Config key enum
+        return abortFiles.abort(new TotalRestrictionError("maxTotalPartCount"));
       })
       .once('filesLimit', () => {
-        // TODO: Error
-        return abortFiles.abort(new PechkinRestrictionError("maxTotalFileCount"));
+        return abortFiles.abort(new TotalRestrictionError("maxTotalFileCount"));
       })
       .once('error', (error) => {
         return abortFiles.abort(error);
@@ -115,10 +110,7 @@ class FileIterator {
       };
     }
     
-    return Object.setPrototypeOf(
-      { next },
-      asyncIterator,
-    )
+    return { next, __proto__: asyncIterator } as AsyncIterator<PechkinFile>;
   }
 
   private handle([field, stream, info]: BusboyFile) {

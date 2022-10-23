@@ -1,15 +1,16 @@
 import { Duplex, Readable } from "stream";
 
 import { ByteLengthStreamFn } from './ByteLengthStreamFn';
+import { FieldRestrictionError } from "./error";
 import { Restrictions } from './restrictions';
 
 
 export class FileHandler {
-  private count: number = 0;
-  private maxFileByteLength: number;
-  private maxFileCount: number;
+  private fileCount: number = 0;
+  private readonly maxFileByteLength: number;
+  private readonly maxFileCount: number;
 
-  constructor(field: string, { general, fileOverride }: Restrictions) {
+  constructor(private readonly field: string, { general, fileOverride }: Restrictions) {
     // TODO: Runtime checks, runtime config check
 
     this.maxFileByteLength =
@@ -25,11 +26,10 @@ export class FileHandler {
   }
 
   fileCountControl() {
-    this.count += 1;
+    this.fileCount += 1;
 
-    if (this.count > this.maxFileCount) {
-      // TODO: error
-      throw new Error("Exceeded file count per field limit.");
+    if (this.fileCount > this.maxFileCount) {
+      throw new FieldRestrictionError("maxFileCountPerField", this.field, this.maxFileCount);
     }
   }
 
@@ -40,8 +40,7 @@ export class FileHandler {
       stream: inputStream.pipe(byteLengthStream),
       byteLength: new Promise((resolve, reject) => {
         events.byteLength.then(resolve);
-        // TODO: Error
-        events.limit.then(reject);
+        events.limit.then(() => reject(new FieldRestrictionError("maxFileByteLength", this.field, this.maxFileCount)));
       })
     }
   }
