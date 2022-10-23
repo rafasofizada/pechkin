@@ -9,8 +9,6 @@ export type FileRestrictions = {
   maxFileByteLength: number;
   maxFileCount?: number;
 };
-
-export const DefaultField: unique symbol = Symbol('DefaultField');
   
 export type Restrictions = {
   general: 
