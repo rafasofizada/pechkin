@@ -1,7 +1,6 @@
 import { Duplex, Readable } from 'stream';
 
-import { StreamFn } from './StreamFn';
-import { SafeEventEmitter } from "./SafeEventEmitter";
+import { EventConfig, SafeEventEmitter } from "./SafeEventEmitter";
 
 const resultEvent = 'byteLength';
 const limitEvent = 'limit';
@@ -9,6 +8,11 @@ const limitEvent = 'limit';
 export type ByteLengthStreamEvents = {
   [limitEvent]: { limit: number, byteLength: number },
   [resultEvent]: number,
+};
+
+export type StreamFn<EC extends EventConfig> = {
+  stream: Duplex,
+  events: { [E in keyof EC]: Promise<EC[E]> }
 };
 
 export function ByteLengthStreamFn(limit: number = Infinity): StreamFn<ByteLengthStreamEvents> {
