@@ -11,6 +11,7 @@ export type PechkinFile = busboy.FileInfo & {
   field: string;
   stream: Readable;
   byteLength: Promise<number>;
+  skipped: boolean;
 };
 
 export type FileFieldNameFilter = string[] | RegExp | ((field: string) => boolean);

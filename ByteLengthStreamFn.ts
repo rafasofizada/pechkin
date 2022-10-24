@@ -1,49 +1,43 @@
-import { Duplex, Readable } from 'stream';
+import { Readable } from 'stream';
 
-import { EventConfig, SafeEventEmitter } from "./SafeEventEmitter";
+import { SafeEventEmitter } from "./SafeEventEmitter";
 
 const resultEvent = 'byteLength';
-const limitEvent = 'limit';
+const maxEvent = 'maxByteLength';
 
-export type ByteLengthStreamEvents = {
-  [limitEvent]: { limit: number, byteLength: number },
-  [resultEvent]: number,
-};
+export const ByteLengthStreamEvents = {
+  RESULT: resultEvent,
+  MAX: maxEvent
+} as const;
 
-export type StreamFn<EC extends EventConfig> = {
-  stream: Duplex,
-  events: { [E in keyof EC]: Promise<EC[E]> }
-};
-
-export function ByteLengthStreamFn(limit: number = Infinity): StreamFn<ByteLengthStreamEvents> {
+export function trackStreamByteLength(this: unknown, source: Readable, maxByteLength: number): SafeEventEmitter<ByteLengthStreamEvents>['once'] {
   let byteLength = 0;
-
   const ee = new SafeEventEmitter<ByteLengthStreamEvents>();
 
-  const events = {
-    [resultEvent]: new Promise<ByteLengthStreamEvents[typeof resultEvent]>((resolve) => {
-      ee.once(resultEvent, resolve);
-    }),
-    [limitEvent]: new Promise<ByteLengthStreamEvents[typeof limitEvent]>((resolve) => {
-      ee.on(limitEvent, resolve);
-    }),
-  }
-
-  async function* generator (this: unknown, source: Readable) {
-    for await (const chunk of source) {
-      byteLength += chunk.byteLength;
-      
-      if (byteLength > limit) {
-        ee.emit(limitEvent, { limit, byteLength });
-      }
-
-      yield chunk;
+  // TODO: on('readable')
+  source.on('data', (chunk) => {
+    const buffer = Buffer.from(chunk);
+    
+    if (byteLength + buffer.byteLength > maxByteLength) {
+      ee.emit(
+        maxEvent,
+        {
+          maxByteLength,
+          byteLengthBeforeLastChunk: byteLength,
+          lastChunkByteLength: buffer.byteLength
+        }
+      );
     }
 
-    ee.emit(resultEvent, byteLength);
-  }
+    byteLength += buffer.byteLength;
+  });
 
-  const stream = Duplex.from(generator);
+  source.on('end', () => ee.emit(resultEvent, byteLength));
 
-  return { stream, events };
+  return ee.once.bind(ee);
 }
+
+type ByteLengthStreamEvents = {
+  [maxEvent]: { maxByteLength: number, byteLengthBeforeLastChunk: number, lastChunkByteLength: number },
+  [resultEvent]: number,
+};
