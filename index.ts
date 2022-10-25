@@ -5,8 +5,7 @@ import { IncomingMessage } from 'http';
 import { FieldRestrictionError, TotalRestrictionError } from './error';
 import { FileRestrictions, Restrictions, restrictionsToBusboyLimits } from './restrictions';
 import { BusboyFile, Fields, ParserDependency, PechkinFile } from './types';
-import { PassThrough } from 'stream';
-import { trackStreamByteLength } from './ByteLengthStreamFn';
+import { ByteLengthTruncateStream } from './length';
 
 // TODO: FILE FILTERING
 // TODO: Runtime checks, runtime config check
@@ -144,25 +143,13 @@ class FileIterator {
         ...info,
       }
     }
-
-    const wrappedStream: PassThrough = stream.pipe(new PassThrough());
     
-    const byteLength = new Promise<number>((resolve, reject) => {
-      const onByteLengthEvent = trackStreamByteLength(wrappedStream, maxFileByteLength);
-
-      onByteLengthEvent('byteLength', (x) => resolve(x));
-      // TODO: Configure throw or skip
-      onByteLengthEvent('maxByteLength', (errorPayload) => reject(new FieldRestrictionError(
-        "maxFileByteLength",
-        field,
-        `{ ${Object.entries(errorPayload).map(entry => entry.join(": ")).join(", ")} }`
-      )));
-    })
+    const truncated = stream.pipe(new ByteLengthTruncateStream(maxFileByteLength));
 
     return {
       field,
-      stream: wrappedStream,
-      byteLength,
+      stream: truncated,
+      byteLength: truncated.byteLength,
       skipped: false,
       ...info,
     };
