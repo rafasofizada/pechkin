@@ -13,5 +13,3 @@ export type PechkinFile = busboy.FileInfo & {
   byteLength: Promise<number>;
   skipped: boolean;
 };
-
-export type FileFieldNameFilter = string[] | RegExp | ((field: string) => boolean);

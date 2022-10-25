@@ -3,11 +3,12 @@ import * as busboy from 'busboy';
 import { IncomingMessage } from 'http';
 
 import { FieldRestrictionError, TotalRestrictionError } from './error';
-import { Restrictions, restrictionsToBusboyLimits } from './restrictions';
+import { FileRestrictions, Restrictions, restrictionsToBusboyLimits } from './restrictions';
 import { BusboyFile, Fields, ParserDependency, PechkinFile } from './types';
 import { PassThrough } from 'stream';
 import { trackStreamByteLength } from './ByteLengthStreamFn';
 
+// TODO: FILE FILTERING
 // TODO: Runtime checks, runtime config check
 export async function parseFormData(
   request: IncomingMessage,
@@ -76,19 +77,22 @@ class FileIterator {
     parser: ParserDependency,
     private readonly restrictions: Restrictions,
   ) {
-    const abortFiles = new AbortController();
-    this.iterator = on(parser, 'file', { signal: abortFiles.signal });
+    this.setDefaults();
+
+    // TODO: Why use AbortController?
+    // const abortFiles = new AbortController();
+    this.iterator = on(parser, 'file');
 
     parser
       .once('partsLimit', () => {
         // TODO: Config key enum
-        return abortFiles.abort(new TotalRestrictionError("maxTotalPartCount"));
+        return this.iterator.throw(new TotalRestrictionError("maxTotalPartCount"));
       })
       .once('filesLimit', () => {
-        return abortFiles.abort(new TotalRestrictionError("maxTotalFileCount"));
+        return this.iterator.throw(new TotalRestrictionError("maxTotalFileCount"))
       })
       .once('error', (error) => {
-        return abortFiles.abort(error);
+        return this.iterator.throw(error);
       })
       .once('finish', () => { 
         return this.iterator.return!();
@@ -102,51 +106,36 @@ class FileIterator {
       // asyncIterator.next() returned by Events.on() accepts no args
       // https://github.com/nodejs/node/blob/main/lib/events.js#L1017
       const iterElement = await asyncIterator.next();
-      
-      try {
-        // === true to narrow down types
-        // TODO: Research/report issue to TypeScript?
-        if (iterElement.done === true) {
-          return { done: true, value: undefined };
-        }
-
-        const result = this.handle(iterElement.value);
-
-      } catch (error) {
-        if (error instanceof FieldRestrictionError && error.restrictionType === "maxFileCountPerField") {
-          
-        }
+    
+      // === true to narrow down types
+      // TODO: Research/report issue to TypeScript?
+      if (iterElement.done === true) {
+        return { done: true, value: undefined };
       }
+
+      return { done: false, value: this.handle(iterElement.value) };
     }
     
     return { next, __proto__: asyncIterator } as AsyncIterator<PechkinFile>;
   }
 
-  private handle([field, stream, info]: BusboyFile, throwOnExceededCountPerField: boolean = true): PechkinFile {
-    const maxFileByteLength =
-        this.restrictions.fileOverride?.[field]?.maxFileByteLength
-        ?? this.restrictions.general.maxFileByteLength
-        ?? Infinity;
-
-    const maxFileCount =
-        this.restrictions.fileOverride?.[field]?.maxFileCount
-        ?? this.restrictions.general.maxFileCountPerField
-        ?? Infinity;
+  private handle([field, stream, info]: BusboyFile): PechkinFile {
+    const maxFileByteLength = this.getFileConfigValue("maxFileByteLength", field, Infinity);
+    const maxFileCount = this.getFileConfigValue("maxFileCountPerField", field, 1);
+    const throwOnExceededCountPerField = this.getFileConfigValue("throwOnExceededCountPerField", field, true);
 
     this.fileCountPerField[field] ??= 0;
     this.fileCountPerField[field] += 1;
-
-    // - curr: 0, max: 0
-    // - curr: 0, max: 1
-    // - curr: 1, max: 10
     
     if (this.fileCountPerField[field] > maxFileCount) {
       stream.resume();
 
+      // TODO: Move to iterator?
       if (throwOnExceededCountPerField) {
         throw new FieldRestrictionError("maxFileCountPerField", field, maxFileCount);
       }
 
+      // TODO: Move to iterator?
       return {
         field,
         stream: null,
@@ -159,10 +148,11 @@ class FileIterator {
     const wrappedStream: PassThrough = stream.pipe(new PassThrough());
     
     const byteLength = new Promise<number>((resolve, reject) => {
-      const onEvent = trackStreamByteLength(wrappedStream, maxFileByteLength);
+      const onByteLengthEvent = trackStreamByteLength(wrappedStream, maxFileByteLength);
 
-      onEvent('byteLength', (x) => resolve(x));
-      onEvent('maxByteLength', (errorPayload) => reject(new FieldRestrictionError(
+      onByteLengthEvent('byteLength', (x) => resolve(x));
+      // TODO: Configure throw or skip
+      onByteLengthEvent('maxByteLength', (errorPayload) => reject(new FieldRestrictionError(
         "maxFileByteLength",
         field,
         `{ ${Object.entries(errorPayload).map(entry => entry.join(": ")).join(", ")} }`
@@ -175,6 +165,20 @@ class FileIterator {
       byteLength,
       skipped: false,
       ...info,
+    };
+  }
+
+  private getFileConfigValue<K extends keyof FileRestrictions, V extends FileRestrictions[K]>(key: K, field: string, defaultValue?: V): V {
+    // TODO: Move default values to general config
+    return (this.restrictions.fileOverride?.[field]?.[key] ?? this.restrictions.base?.[key] ?? defaultValue) as V;
+  }
+
+  private setDefaults(): void {
+    this.restrictions.base = {
+      maxFileByteLength: Infinity,
+      maxFileCountPerField: 1,
+      throwOnExceededCountPerField: true,
+      ...this.restrictions.base,
     };
   }
 }

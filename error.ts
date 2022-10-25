@@ -4,11 +4,7 @@ class InternalError extends Error {
   public readonly restrictionType: RestrictionType;
   public readonly busboyLimitType?: BusboyLimitWithRestrictionAnalogue;
   public readonly stack: string;
-  private _message: string;
-
-  get message(): string {
-    return this._message;
-  }
+  public message: string;
 
   constructor(
     restrictionType: RestrictionType,
@@ -20,14 +16,14 @@ class InternalError extends Error {
       .map(s => s.toLocaleLowerCase())
       .join(" ");
 
-    let message = `Exceeded ${formattedRestrictionType} limit.`;
+    let message = `Exceeded ${formattedRestrictionType} limit ("${restrictionType}").`;
     const busboyLimitType = restrictionToLimit[restrictionType];
 
     super(message); // sets "this.stack"
 
     if (busboyLimitType) {
       this.busboyLimitType = busboyLimitType;
-      message += `\nCorresponding Busboy configuration option: Busboy.Limits[${this.busboyLimitType}].`
+      message += `\nCorresponding Busboy configuration option: Busboy.Limits["${this.busboyLimitType}"].`
     }
 
     if (this.configurationInfo) {
@@ -35,11 +31,8 @@ class InternalError extends Error {
     }
 
     this.restrictionType = restrictionType;
-    this._message = message;
-  }
 
-  protected appendMessage(s: string) {
-    this._message += "\n" + s;
+    this.message = message;
   }
 }
 
@@ -57,14 +50,14 @@ export class FieldRestrictionError extends InternalError {
   ) {
     super(fieldRestrictionType, configurationInfo);
 
-    this.appendMessage(`Field: ${field}`);
+    this.message += `\nField: "${field}"`;
   }
 }
 
-type RestrictionType = Exclude<keyof Restrictions["general"], "maxTotalHeaderPairs">;
+type RestrictionType = Exclude<keyof Restrictions["base"], "maxTotalHeaderPairs">;
 type TotalRestrictionType = "maxTotalPartCount" | "maxTotalFileCount" | "maxTotalFieldCount";
 type FieldRestrictionType = Exclude<RestrictionType, TotalRestrictionType>;
-type RestrictionTypeWithBusboyAnalogue = Exclude<RestrictionType, "maxFileByteLength" | "maxFileCountPerField">;
+type RestrictionTypeWithBusboyAnalogue = Exclude<RestrictionType, "maxFileByteLength" | "maxFileCountPerField" | "throwOnExceededCountPerField">;
 type BusboyLimitWithRestrictionAnalogue = "parts" | "files" | "fields" | "fieldNameSize" | "fieldSize";
 
 const restrictionToLimit: Record<
