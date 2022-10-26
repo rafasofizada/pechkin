@@ -18,7 +18,7 @@ createServer(
           maxFieldValueByteLength: 10,
           maxFileByteLength: 100 * 1024,
           maxFileCountPerField: 2,
-          throwOnExceededCountPerField: false,
+          onExceededFileCountPerField: false,
         }
       }
     );

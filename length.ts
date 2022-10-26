@@ -2,21 +2,29 @@ import { Transform, TransformCallback } from 'stream';
 
 import { SafeEventEmitter } from "./SafeEventEmitter";
 
-export class ByteLengthTruncateStream extends Transform {
-  public byteLength: Promise<number>;
+// TODO:
+// 'limit' –> 'truncated'
+// Return { byteLength, truncated } instead of byteLength
 
-  private readonly byteLengthEventEmitter: SafeEventEmitter<ByteLengthStreamEvents>;
+export class ByteLengthTruncateStream extends Transform {
+  public result: Promise<
+    | { event: 'limit', value: ByteLengthStreamEvents['limit'] }
+    | { event: 'byteLength', value: ByteLengthStreamEvents['byteLength'] }
+  >;
+
+  private readonly ee: SafeEventEmitter<ByteLengthStreamEvents>;
   private truncated: boolean = false;
   private readBytes: number = 0;
 
   constructor(private readonly maxByteLength: number) {
     super();
 
-    this.byteLengthEventEmitter = new SafeEventEmitter();
+    this.ee = new SafeEventEmitter();
 
-    this.byteLength = new Promise<number>((resolve, reject) => {
-      this.byteLengthEventEmitter.once('result', resolve);
-      this.byteLengthEventEmitter.once('limit', reject);
+    // Event listeners (.once()) need to be registered as soon as possible, preferrably during initialization, to guarantee that they catch events in _transform
+    this.result = new Promise((resolve) => {
+      this.ee.once('limit', (limitInfo) => resolve({ event: 'limit', value: limitInfo }));
+      this.ee.once('byteLength', (byteLength) => resolve({ event: 'byteLength', value: byteLength }));
     });
   }
 
@@ -36,7 +44,7 @@ export class ByteLengthTruncateStream extends Transform {
       this.truncated = true;
       const truncatedChunk = buffer.subarray(0, this.maxByteLength - this.readBytes);
 
-      this.byteLengthEventEmitter.emit('limit', {
+      this.ee.emit('limit', {
         maxByteLength: this.maxByteLength,
         readBytes: this.readBytes,
         lastChunkByteLength: buffer.byteLength
@@ -52,7 +60,7 @@ export class ByteLengthTruncateStream extends Transform {
   }
 
   public _flush(callback: TransformCallback): void {
-    this.byteLengthEventEmitter.emit('result', this.readBytes);
+    this.ee.emit('byteLength', this.readBytes);
 
     return callback();
   }
@@ -60,5 +68,5 @@ export class ByteLengthTruncateStream extends Transform {
 
 type ByteLengthStreamEvents = {
   limit: { maxByteLength: number, readBytes: number, lastChunkByteLength: number },
-  result: number,
+  byteLength: number,
 };

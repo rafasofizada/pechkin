@@ -57,16 +57,12 @@ export class FieldRestrictionError extends InternalError {
 type RestrictionType = Exclude<keyof Restrictions["base"], "maxTotalHeaderPairs">;
 type TotalRestrictionType = "maxTotalPartCount" | "maxTotalFileCount" | "maxTotalFieldCount" | "maxTotalFileFieldCount";
 type FieldRestrictionType = Exclude<RestrictionType, TotalRestrictionType>;
-type RestrictionTypeWithBusboyAnalogue = Exclude<RestrictionType, "maxFileByteLength" | "maxFileCountPerField" | "throwOnExceededCountPerField">;
 type BusboyLimitWithRestrictionAnalogue = "parts" | "files" | "fields" | "fieldNameSize" | "fieldSize";
 
-const restrictionToLimit: Record<
-  RestrictionTypeWithBusboyAnalogue,
-  BusboyLimitWithRestrictionAnalogue
-> = {
+const restrictionToLimit = {
   maxTotalPartCount: "parts",
   maxTotalFileCount: "files",
   maxTotalFieldCount: "fields",
   maxFieldKeyByteLength: "fieldNameSize",
   maxFieldValueByteLength: "fieldSize",
-};
+} as const;

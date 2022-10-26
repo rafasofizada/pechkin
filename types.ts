@@ -9,12 +9,11 @@ export type BusboyFile = [field: string, stream: Readable, info: busboy.FileInfo
 
 export type PechkinFile = busboy.FileInfo & {
   field: string;
+  byteLength: Promise<number>; // NaN if skipped === true
+} & ({
   stream: Readable;
-  byteLength: Promise<number>;
-  skipped: boolean;
-};
-
-export type PechkinSkippedFile = Omit<PechkinFile, "stream" | "byteLength"> & {
+  skipped: false;
+} | {
   stream: null;
-  byteLength: Promise<number>;
-};
+  skipped: true;
+});
