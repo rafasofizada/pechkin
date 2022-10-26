@@ -7,11 +7,23 @@ import { FileRestrictions, Restrictions, restrictionsToBusboyLimits } from './re
 import { BusboyFile, Fields, ParserDependency, PechkinFile } from './types';
 import { ByteLengthTruncateStream } from './length';
 
-// TODO: FILE FILTERING
 // TODO: Runtime checks, runtime config check
 export async function parseFormData(
   request: IncomingMessage,
-  restrictions: Restrictions,
+  restrictions: Restrictions = {
+    base: {
+      maxTotalHeaderPairs: 2000,
+      maxTotalPartCount: 110,
+      maxFieldKeyByteLength: 100,
+      maxFieldValueByteLength: 1024 * 1024,
+      maxTotalFieldCount: 100,
+      maxTotalFileFieldCount: 1,
+      maxTotalFileCount: 10,
+      maxFileByteLength: 50 * 1024 * 1024,
+      maxFileCountPerField: 1,
+      throwOnExceededCountPerField: true,
+    }
+  },
   busboyConfig: Omit<busboy.BusboyConfig, 'headers' | 'limits'> = {}
 ): Promise<{
   fields: Fields,
@@ -76,8 +88,6 @@ class FileIterator {
     parser: ParserDependency,
     private readonly restrictions: Restrictions,
   ) {
-    this.setDefaults();
-
     // TODO: Why use AbortController?
     // const abortFiles = new AbortController();
     this.iterator = on(parser, 'file');
@@ -98,6 +108,7 @@ class FileIterator {
       });
   }
 
+  // TODO: Typing - PechkinFile | { stream: null }
   [Symbol.asyncIterator](): AsyncIterator<PechkinFile> {
     const asyncIterator = this.iterator[Symbol.asyncIterator]();
 
@@ -122,6 +133,10 @@ class FileIterator {
     const maxFileByteLength = this.getFileConfigValue("maxFileByteLength", field, Infinity);
     const maxFileCount = this.getFileConfigValue("maxFileCountPerField", field, 1);
     const throwOnExceededCountPerField = this.getFileConfigValue("throwOnExceededCountPerField", field, true);
+
+    if (Object.keys(this.fileCountPerField).length > this.restrictions.base.maxTotalFileFieldCount) {
+      throw new TotalRestrictionError("maxTotalFileFieldCount");
+    }
 
     this.fileCountPerField[field] ??= 0;
     this.fileCountPerField[field] += 1;
@@ -158,14 +173,5 @@ class FileIterator {
   private getFileConfigValue<K extends keyof FileRestrictions, V extends FileRestrictions[K]>(key: K, field: string, defaultValue?: V): V {
     // TODO: Move default values to general config
     return (this.restrictions.fileOverride?.[field]?.[key] ?? this.restrictions.base?.[key] ?? defaultValue) as V;
-  }
-
-  private setDefaults(): void {
-    this.restrictions.base = {
-      maxFileByteLength: Infinity,
-      maxFileCountPerField: 1,
-      throwOnExceededCountPerField: true,
-      ...this.restrictions.base,
-    };
   }
 }

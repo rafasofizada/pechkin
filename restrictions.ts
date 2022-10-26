@@ -1,35 +1,25 @@
 import * as busboy from 'busboy';
 
-export type FileRestrictions = {
+export type FileRestrictions = Partial<{
   maxFileByteLength: number;
   maxFileCountPerField?: number;
   throwOnExceededCountPerField?:  boolean;
-};
+}>;
   
 export type Restrictions = {
-  base: 
-    & {
-      maxTotalHeaderPairs?:           number;             // OPTIONAL, DEFAULT BusboyLimits.headerPairs = 2000
-      maxFieldKeyByteLength?:         number;             // OPTIONAL, DEFAULT BusboyLimits.fieldNameSize = 100 bytes
-      maxFieldValueByteLength?:       number;             // OPTIONAL, DEFAULT BusboyLimits.fieldSize = 1 MB
-      maxFileByteLength:              number;             // REQUIRED, DEFAULT BusboyLimits.fileSize = Infinity (!)
-      maxFileCountPerField?:          number;             // OPTIONAL, TODO DEFAULT = 1
-      throwOnExceededCountPerField?:  boolean;            // OPTIONAL, DEFAULT = false
-    }
-    & (
-      {
-        maxTotalPartCount:            number;             // REQUIRED, DEFAULT BusboyLimits.parts = Infinity (!)
-        maxTotalFileCount?:           number;             // OPTIONAL
-        maxTotalFieldCount?:          number;             // OPTIONAL
-      }
-      |                                                   // OR
-      {
-        maxTotalPartCount?:           number;             // OPTIONAL
-        maxTotalFileCount:            number;             // REQUIRED, DEFAULT BusboyLimits.files = Infinity (!)
-        maxTotalFieldCount:           number;             // REQUIRED, DEFAULT BusboyLimits.fields = Infinity (!)
-      }
-    );
-  fileOverride?: Record<string, FileRestrictions>;    // OVERRIDES baseMaxField{ Key, Value }ByteLength
+  base: Partial<{                                         // PECHKIN DEFAULT      BUSBOY ANALOG       BUSBOY DEFAULT
+    maxTotalHeaderPairs?:             number;             //            2000      "headerPairs"                 2000
+    maxFieldKeyByteLength?:           number;             //       100 bytes      "fieldNameSize"          100 bytes
+    maxFieldValueByteLength?:         number;             //            1 MB      "fieldSize"                   1 MB
+    maxFileByteLength:                number;             //           50 MB      "fileSize"                Infinity
+    throwOnExceededCountPerField?:    boolean;            //            true                          
+    maxTotalFieldCount?:              number;             //             100      "fields"                  Infinity
+    maxTotalFileCount?:               number;             //              10      "files"                   Infinity
+    maxTotalPartCount?:               number;             //  100 + 10 = 110      "parts"                   Infinity 
+    maxTotalFileFieldCount?:          number;             //               1
+    maxFileCountPerField?:            number;             //               1
+  }>;
+  fileOverride?: Record<string, FileRestrictions>;
 };
 
 export function restrictionsToBusboyLimits(

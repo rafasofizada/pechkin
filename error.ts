@@ -55,7 +55,7 @@ export class FieldRestrictionError extends InternalError {
 }
 
 type RestrictionType = Exclude<keyof Restrictions["base"], "maxTotalHeaderPairs">;
-type TotalRestrictionType = "maxTotalPartCount" | "maxTotalFileCount" | "maxTotalFieldCount";
+type TotalRestrictionType = "maxTotalPartCount" | "maxTotalFileCount" | "maxTotalFieldCount" | "maxTotalFileFieldCount";
 type FieldRestrictionType = Exclude<RestrictionType, TotalRestrictionType>;
 type RestrictionTypeWithBusboyAnalogue = Exclude<RestrictionType, "maxFileByteLength" | "maxFileCountPerField" | "throwOnExceededCountPerField">;
 type BusboyLimitWithRestrictionAnalogue = "parts" | "files" | "fields" | "fieldNameSize" | "fieldSize";

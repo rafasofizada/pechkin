@@ -13,3 +13,8 @@ export type PechkinFile = busboy.FileInfo & {
   byteLength: Promise<number>;
   skipped: boolean;
 };
+
+export type PechkinSkippedFile = Omit<PechkinFile, "stream" | "byteLength"> & {
+  stream: null;
+  byteLength: Promise<number>;
+};
