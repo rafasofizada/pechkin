@@ -103,7 +103,7 @@ class FileIterator {
       .once('error', (error) => {
         return this.iterator.throw(error);
       })
-      .once('finish', () => { 
+      .once('close', () => { 
         return this.iterator.return!();
       });
   }
