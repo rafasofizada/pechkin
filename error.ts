@@ -1,23 +1,23 @@
-import { Restrictions } from './restrictions';
+import { PechkinConfig } from './types';
 
 class InternalError extends Error {
-  public readonly restrictionType: RestrictionType;
-  public readonly busboyLimitType?: BusboyLimitWithRestrictionAnalogue;
+  public readonly limitType: LimitType;
+  public readonly busboyLimitType?: BusboyLimitWithLimitAnalogue;
   public readonly stack: string;
   public message: string;
 
   constructor(
-    restrictionType: RestrictionType,
+    limitType: LimitType,
     public readonly configurationInfo?: unknown
   ) {
-    const formattedRestrictionType = restrictionType.split(/([A-Z][a-z]+)/) // split each Uppercase word
+    const formattedLimitType = limitType.split(/([A-Z][a-z]+)/) // split each Uppercase word
       .slice(1) // remove "max"
       .filter(Boolean) // remove empty '' between Words
       .map(s => s.toLocaleLowerCase())
       .join(" ");
 
-    let message = `Exceeded ${formattedRestrictionType} limit ("${restrictionType}").`;
-    const busboyLimitType = restrictionToLimit[restrictionType];
+    let message = `Exceeded ${formattedLimitType} limit ("${limitType}").`;
+    const busboyLimitType = limitToLimit[limitType];
 
     super(message); // sets "this.stack"
 
@@ -30,36 +30,36 @@ class InternalError extends Error {
       message += `\nConfiguration info: ${this.configurationInfo}`;
     }
 
-    this.restrictionType = restrictionType;
+    this.limitType = limitType;
 
     this.message = message;
   }
 }
 
-export class TotalRestrictionError extends InternalError {
-  constructor(totalRestrictionType: TotalRestrictionType, configurationInfo?: unknown) {
-    super(totalRestrictionType, configurationInfo);
+export class TotalLimitError extends InternalError {
+  constructor(totalLimitType: TotalLimitType, configurationInfo?: unknown) {
+    super(totalLimitType, configurationInfo);
   }
 }
 
-export class FieldRestrictionError extends InternalError {
+export class FieldLimitError extends InternalError {
   constructor(
-    fieldRestrictionType: FieldRestrictionType,
+    fieldLimitType: FieldLimitType,
     public readonly field: string,
     configurationInfo?: unknown
   ) {
-    super(fieldRestrictionType, configurationInfo);
+    super(fieldLimitType, configurationInfo);
 
     this.message += `\nField: "${field}"`;
   }
 }
 
-type RestrictionType = Exclude<keyof Restrictions["base"], "maxTotalHeaderPairs">;
-type TotalRestrictionType = "maxTotalPartCount" | "maxTotalFileCount" | "maxTotalFieldCount" | "maxTotalFileFieldCount";
-type FieldRestrictionType = Exclude<RestrictionType, TotalRestrictionType>;
-type BusboyLimitWithRestrictionAnalogue = "parts" | "files" | "fields" | "fieldNameSize" | "fieldSize";
+type LimitType = Exclude<keyof PechkinConfig["base"], "maxTotalHeaderPairs">;
+type TotalLimitType = "maxTotalPartCount" | "maxTotalFileCount" | "maxTotalFieldCount" | "maxTotalFileFieldCount";
+type FieldLimitType = Exclude<LimitType, TotalLimitType>;
+type BusboyLimitWithLimitAnalogue = "parts" | "files" | "fields" | "fieldNameSize" | "fieldSize";
 
-const restrictionToLimit = {
+const limitToLimit = {
   maxTotalPartCount: "parts",
   maxTotalFileCount: "files",
   maxTotalFieldCount: "fields",

@@ -1,4 +1,4 @@
-import { EventEmitter } from "events";
+import { EventEmitter, once } from "events";
 
 export type EventConfig = Record<string, any>;
 
@@ -17,7 +17,7 @@ export class SafeEventEmitter<EC extends EventConfig> {
     this.ee.on(event as string, listener);
   }
 
-  once<E extends keyof EC>(event: E, listener: (payload: EC[E]) => void): void {
-    this.ee.once(event as string, listener);
+  once<E extends keyof EC>(event: E): Promise<EC[E]> {
+    return once(this.ee, event as string) as Promise<EC[E]>;
   }
 }

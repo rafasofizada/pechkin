@@ -1,16 +1,11 @@
 import { Transform, TransformCallback } from 'stream';
 
 import { SafeEventEmitter } from "./SafeEventEmitter";
-
-// TODO:
-// 'limit' –> 'truncated'
-// Return { byteLength, truncated } instead of byteLength
+import { TruncationInfo } from './types';
 
 export class ByteLengthTruncateStream extends Transform {
-  public result: Promise<
-    | { event: 'limit', value: ByteLengthStreamEvents['limit'] }
-    | { event: 'byteLength', value: ByteLengthStreamEvents['byteLength'] }
-  >;
+  public truncatedEvent: Promise<ByteLengthStreamEvents['truncated']>;
+  public byteLengthEvent: Promise<ByteLengthStreamEvents['byteLength']>;
 
   private readonly ee: SafeEventEmitter<ByteLengthStreamEvents>;
   private truncated: boolean = false;
@@ -21,11 +16,9 @@ export class ByteLengthTruncateStream extends Transform {
 
     this.ee = new SafeEventEmitter();
 
-    // Event listeners (.once()) need to be registered as soon as possible, preferrably during initialization, to guarantee that they catch events in _transform
-    this.result = new Promise((resolve) => {
-      this.ee.once('limit', (limitInfo) => resolve({ event: 'limit', value: limitInfo }));
-      this.ee.once('byteLength', (byteLength) => resolve({ event: 'byteLength', value: byteLength }));
-    });
+    // Event listeners (.once()) need to be registered as soon as possible, preferrably during initialization, to guarantee that they catch events in _transform()
+    this.truncatedEvent = this.ee.once('truncated');
+    this.byteLengthEvent = this.ee.once('byteLength');
   }
 
   // encoding = 'buffer': https://nodejs.org/api/stream.html#transform_transformchunk-encoding-callback
@@ -36,21 +29,21 @@ export class ByteLengthTruncateStream extends Transform {
 
     this.readBytes += buffer.byteLength;
 
-    if (this.readBytes > this.maxByteLength) {
-      if (this.truncated) {
-        return callback();
-      }
+    if (this.truncated) {
+      return callback();
+    }
 
+    if (this.readBytes > this.maxByteLength) {
       this.truncated = true;
       const truncatedChunk = buffer.subarray(0, this.maxByteLength - this.readBytes);
 
-      this.ee.emit('limit', {
+      this.ee.emit('truncated', {
         maxByteLength: this.maxByteLength,
         readBytes: this.readBytes,
         lastChunkByteLength: buffer.byteLength
       });
 
-      // TODO: why does this.end() halt the stream?
+      // TODO: why does `this.end()` halt the stream?
       this.readBytes += truncatedChunk.byteLength;
 
       return callback(null, truncatedChunk);
@@ -67,6 +60,6 @@ export class ByteLengthTruncateStream extends Transform {
 }
 
 type ByteLengthStreamEvents = {
-  limit: { maxByteLength: number, readBytes: number, lastChunkByteLength: number },
+  truncated: TruncationInfo,
   byteLength: number,
 };
