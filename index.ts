@@ -8,8 +8,6 @@ import { defaultPechkinConfig, pechkinConfigToBusboyLimits } from './config';
 import { BusboyFile, Fields, ParserDependency, FileFieldLimits, PechkinFile, PechkinConfig} from './types';
 import { ByteLengthTruncateStream } from './length';
 
-// TODO!!!: Return an IteratorResult instead of throwing an error
-
 export async function parseFormData(
   request: IncomingMessage,
   PechkinConfig?: PechkinConfig,
@@ -136,6 +134,7 @@ class FileIterator {
             field,
             stream: null,
             skipped,
+            byteLength: Promise.resolve(NaN),
             ...info,
           },
         };

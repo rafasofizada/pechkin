@@ -9,14 +9,16 @@ export type BusboyFile = [field: string, stream: Readable, info: busboy.FileInfo
 
 export type PechkinFile = busboy.FileInfo & {
   field: string;
+  byteLength: Promise<number>; // NaN if skipped === true
 } & ({
   stream: Readable;
-  byteLength: Promise<number>; // NaN if skipped === true
   truncated: Promise<TruncationInfo>;
   skipFile: () => void;
   skipped: false;
 } | {
   stream: null;
+  truncated?: undefined;
+  skipFile?: undefined;
   skipped: true;
 });
 
@@ -29,7 +31,7 @@ export type Limits = {                                    // PECHKIN DEFAULT    
   maxTotalHeaderPairs:             number;                //            2000      "headerPairs"                 2000
   maxFieldKeyByteLength:           number;                //       100 bytes      "fieldNameSize"          100 bytes
   maxFieldValueByteLength:         number;                //            1 MB      "fieldSize"                   1 MB
-  maxFileByteLength:               number;               //           50 MB      "fileSize"                Infinity
+  maxFileByteLength:               number;                //           50 MB      "fileSize"                Infinity
   maxTotalFieldCount:              number;                //             100      "fields"                  Infinity
   maxTotalFileCount:               number;                //              10      "files"                   Infinity
   maxTotalPartCount:               number;                //  100 + 10 = 110      "parts"                   Infinity 
@@ -47,4 +49,3 @@ export type TruncationInfo = {
   readBytes: number;
   lastChunkByteLength: number;
 };
-
