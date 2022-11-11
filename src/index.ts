@@ -82,19 +82,22 @@ class FileIterator {
     private readonly parser: busboy.Busboy,
     private readonly config: PechkinConfig,
   ) {
-    this.fileController= new FileController(config);
+    this.fileController = new FileController(config);
 
     this.iterator = on(this.parser, 'file');
 
+    // AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
+    // from the Node.js source code for on(), the returned object always providers
+    // implementations for next(), return(), throw().
     this.parser
       .once('partsLimit', () => {
-        return this.iterator.throw(new TotalLimitError("maxTotalPartCount"));
+        return this.iterator.throw!(new TotalLimitError("maxTotalPartCount"));
       })
       .once('filesLimit', () => {
-        return this.iterator.throw(new TotalLimitError("maxTotalFileCount"))
+        return this.iterator.throw!(new TotalLimitError("maxTotalFileCount"))
       })
       .once('error', (error) => {
-        return this.iterator.throw(error);
+        return this.iterator.throw!(error);
       })
       .once('close', () => { 
         return this.iterator.return!();
@@ -181,7 +184,7 @@ class FileController {
 
   constructor(private readonly config: PechkinConfig) {}
 
-  getFieldControllerUpsert(field: string): [TotalLimitError, SingleFileFieldController?] {
+  getFieldControllerUpsert(field: string): [TotalLimitError] | [null, SingleFileFieldController] {
     this.fileFieldControllers[field] ??= new SingleFileFieldController(field, this.config);
 
     if (Object.keys(this.fileFieldControllers).length > this.config.base.maxTotalFileFieldCount) {
@@ -203,7 +206,7 @@ class SingleFileFieldController {
     this.limits = this.fileFieldLimits(field, config);
   }
 
-  limitCount(): [FieldLimitError, number]  {
+  limitCount(): [FieldLimitError | null, number]  {
     this.count += 1;
 
     if (this.count > this.limits.maxFileCountPerField) {
@@ -236,7 +239,7 @@ class SingleFileFieldController {
   private fileFieldLimits(field: string, config: PechkinConfig): FileFieldLimits {
     return {
       ...config.base,
-      ...(config.fileOverride[field] ?? {}),
+      ...(config.fileOverride?.[field] ?? {}),
     };
   }
 }

@@ -6,6 +6,6 @@
     "module": "CommonJS",
     "sourceMap": true
   },
-  "include": ["index.ts", "manual-test.ts"],
+  "include": ["src"],
   "exclude": ["node_modules"]
 }
