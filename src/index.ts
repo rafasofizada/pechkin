@@ -20,7 +20,7 @@ export async function parseFormData(
     ...(pechkinConfig ?? defaultPechkinConfig),
     base: {
       ...defaultPechkinConfig.base,
-      ...pechkinConfig.base,
+      ...(pechkinConfig?.base ?? {}),
     }
   } as RequiredPechkinConfig;
 
