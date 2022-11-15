@@ -10,16 +10,16 @@ import { ByteLengthTruncateStream } from './length';
 
 export async function parseFormData(
   request: IncomingMessage,
-  PechkinConfig?: PechkinConfig,
+  pechkinConfig?: PechkinConfig,
   busboyConfig?: Omit<busboy.BusboyConfig, 'headers' | 'limits'> & { headers?: busboy.BusboyConfig['headers'] }
 ): Promise<{
   fields: Fields,
   files: FileIterator,
 }> {
-  PechkinConfig ??= defaultPechkinConfig;
+  pechkinConfig ??= defaultPechkinConfig;
   // Fill in the defaults
-  PechkinConfig.base = {
-    ...PechkinConfig.base,
+  pechkinConfig.base = {
+    ...pechkinConfig.base,
     ...defaultPechkinConfig.base,
   };
 
@@ -27,11 +27,11 @@ export async function parseFormData(
   const parser = busboy({
     headers: request.headers,
     ...(busboyConfig ?? {}),
-    limits: pechkinConfigToBusboyLimits(PechkinConfig),
+    limits: pechkinConfigToBusboyLimits(pechkinConfig),
   });
 
   const fields = FieldsPromise(parser);
-  const files = new FileIterator(parser, PechkinConfig);
+  const files = new FileIterator(parser, pechkinConfig);
   
   request.pipe(parser);
 
