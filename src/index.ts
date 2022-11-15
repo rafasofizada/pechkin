@@ -46,15 +46,9 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
 
     parser
       .on('field', (name: string, value: string, info: busboy.FieldInfo) => {
+        // Bug in Busboy (https://github.com/mscdex/busboy/issues/6)
         if (info.nameTruncated) reject(new FieldLimitError("maxFieldKeyByteLength", name));
         if (info.valueTruncated) reject(new FieldLimitError("maxFieldValueByteLength", name));
-
-        /* TODO: From Multer:
-          // Work around bug in Busboy (https://github.com/mscdex/busboy/issues/6)
-          if (limits && Object.prototype.hasOwnProperty.call(limits, 'fieldNameSize')) {
-            if (fieldname.length > limits.fieldNameSize) return abortWithCode('LIMIT_FIELD_KEY')
-          }
-        */
 
         fields[name] = value;
       })
