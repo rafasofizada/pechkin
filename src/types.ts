@@ -23,6 +23,11 @@ export type PechkinFile = busboy.FileInfo & {
 });
 
 export type PechkinConfig = {
+  base: Partial<Limits>;
+  fileOverride?: Record<string, Partial<FileFieldLimits>>;
+};
+
+export type RequiredPechkinConfig = {
   base: Limits;
   fileOverride?: Record<string, FileFieldLimits>;
 };

@@ -1,5 +1,5 @@
 import * as busboy from 'busboy';
-import { PechkinConfig } from './types';
+import { RequiredPechkinConfig } from './types';
 
 export function pechkinConfigToBusboyLimits(
   {
@@ -13,7 +13,7 @@ export function pechkinConfigToBusboyLimits(
       maxFileByteLength,
     },
     fileOverride = {},
-  }: PechkinConfig
+  }: RequiredPechkinConfig
 ): busboy.Limits {
   return {
     headerPairs:    maxTotalHeaderPairs,
@@ -29,7 +29,7 @@ export function pechkinConfigToBusboyLimits(
   };
 }
 
-export const defaultPechkinConfig: PechkinConfig = {
+export const defaultPechkinConfig: RequiredPechkinConfig = {
   base: {
     maxTotalHeaderPairs: 2000,
     maxTotalPartCount: 110,

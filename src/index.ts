@@ -1,11 +1,11 @@
 import { on } from 'events';
-import * as busboy from 'busboy';
+import busboy from 'busboy';
 import { Readable } from 'stream';
 import { IncomingMessage } from 'http';
 
 import { FieldLimitError, TotalLimitError } from './error';
 import { defaultPechkinConfig, pechkinConfigToBusboyLimits } from './config';
-import { BusboyFile, Fields, ParserDependency, FileFieldLimits, PechkinFile, PechkinConfig} from './types';
+import { BusboyFile, Fields, ParserDependency, FileFieldLimits, PechkinFile, RequiredPechkinConfig, PechkinConfig} from './types';
 import { ByteLengthTruncateStream } from './length';
 
 export async function parseFormData(
@@ -16,22 +16,24 @@ export async function parseFormData(
   fields: Fields,
   files: FileIterator,
 }> {
-  pechkinConfig ??= defaultPechkinConfig;
-  // Fill in the defaults
-  pechkinConfig.base = {
-    ...pechkinConfig.base,
-    ...defaultPechkinConfig.base,
-  };
+  const config = {
+    ...(pechkinConfig ?? defaultPechkinConfig),
+    base: {
+      ...defaultPechkinConfig.base,
+      ...pechkinConfig.base,
+    }
+  } as RequiredPechkinConfig;
 
-  // Overwrite headers, but don't overwrite limits
   const parser = busboy({
     headers: request.headers,
+    // Overwrite headers...
     ...(busboyConfig ?? {}),
-    limits: pechkinConfigToBusboyLimits(pechkinConfig),
+    // ...but don't overwrite limits
+    limits: pechkinConfigToBusboyLimits(config),
   });
 
   const fields = FieldsPromise(parser);
-  const files = new FileIterator(parser, pechkinConfig);
+  const files = new FileIterator(parser, config);
   
   request.pipe(parser);
 
@@ -80,7 +82,7 @@ class FileIterator {
 
   constructor(
     private readonly parser: busboy.Busboy,
-    private readonly config: PechkinConfig,
+    private readonly config: RequiredPechkinConfig,
   ) {
     this.fileController = new FileController(config);
 
@@ -182,7 +184,7 @@ class FileIterator {
 class FileController {
   private readonly fileFieldControllers: Record<string, SingleFileFieldController> = {};
 
-  constructor(private readonly config: PechkinConfig) {}
+  constructor(private readonly config: RequiredPechkinConfig) {}
 
   getFieldControllerUpsert(field: string): [TotalLimitError] | [null, SingleFileFieldController] {
     this.fileFieldControllers[field] ??= new SingleFileFieldController(field, this.config);
@@ -201,7 +203,7 @@ class SingleFileFieldController {
 
   constructor(
     private readonly field: string,
-    config: PechkinConfig
+    config: RequiredPechkinConfig
   ) {
     this.limits = this.fileFieldLimits(field, config);
   }
@@ -236,7 +238,7 @@ class SingleFileFieldController {
     return truncatedStream;
   }
 
-  private fileFieldLimits(field: string, config: PechkinConfig): FileFieldLimits {
+  private fileFieldLimits(field: string, config: RequiredPechkinConfig): FileFieldLimits {
     return {
       ...config.base,
       ...(config.fileOverride?.[field] ?? {}),
