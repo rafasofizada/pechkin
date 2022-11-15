@@ -32,110 +32,72 @@ describe('Fields', () => {
     // TODO: maxFieldKeyByteLength
 
     describe('maxTotalFieldCount', () => {
-      it('count < limit', async () => {
-        const payload = {
-          field: 'value',
-          field1: 'value',
-        };
-        const maxTotalFieldCount = Object.keys(payload).length + 1;
-        await limitTest(payload, { maxTotalFieldCount }, 'resolve');
-      });
+      it('count < limit', () => limitTest(
+        { field: 'value', field1: 'value' },
+        { maxTotalFieldCount: 3 },
+        'resolve'
+      ));
       
-      it('count == limit', async () => {
-        const payload = {
-          field: 'value',
-          field1: 'value',
-        };
-        const maxTotalFieldCount = Object.keys(payload).length;
-        await limitTest(payload, { maxTotalFieldCount }, 'resolve');
-      });
+      it('count < limit', () => limitTest(
+        { field: 'value', field1: 'value' },
+        { maxTotalFieldCount: 2 },
+        'resolve'
+      ));
 
-      it('count > limit', async () => {
-        const payload = {
-          field: 'value',
-          field1: 'value',
-        };
-        const maxTotalFieldCount = Object.keys(payload).length - 1;
-        await limitTest(payload, { maxTotalFieldCount }, 'reject', TotalLimitError);
-      });
+      it('count < limit', () => limitTest(
+        { field: 'value', field1: 'value' },
+        { maxTotalFieldCount: 1 },
+        'reject',
+        TotalLimitError
+      ));
     });
 
     describe('maxFieldValueByteLength', () => {
       describe('single field', () => {
-        it('valueByteLength < limit', async () => {
-          const value = 'value';
-          const maxFieldValueByteLength = Buffer.from(value).byteLength + 1;
-
-          const payload = {
-            field: value,
-          };
-    
-          await limitTest(payload, { maxFieldValueByteLength }, 'resolve');
-        });
+        it('valueByteLength < limit', () => limitTest(
+          { field: 'value' },
+          // 'value' is 5 bytes, limit is 6 bytes
+          { maxFieldValueByteLength: 5 + 1 },
+          'resolve'
+        ));
         
-        it('valueByteLength == limit', async () => {
-          const value = 'value';
-          const maxFieldValueByteLength = Buffer.from(value).byteLength;
-
-          const payload = {
-            field: value,
-          };
-    
-          await limitTest(payload, { maxFieldValueByteLength }, 'reject', FieldLimitError);
-        });
+        it('valueByteLength < limit', () => limitTest(
+          { field: 'value' },
+          { maxFieldValueByteLength: 5 },
+          'reject',
+          FieldLimitError
+        ));
   
-        it('valueByteLength > limit', async () => {
-          const value = 'value';
-          const maxFieldValueByteLength = Buffer.from(value).byteLength - 1;
-
-          const payload = {
-            field: value,
-          };
-
-          await limitTest(payload, { maxFieldValueByteLength }, 'reject', FieldLimitError);
-        });
+        it('valueByteLength < limit', () => limitTest(
+          { field: 'value' },
+          { maxFieldValueByteLength: 4 },
+          'reject',
+          FieldLimitError
+        ));
       });
 
       describe('multiple fields', () => {
-        it('valueByteLength < limit', async () => {
-          const value = 'value';
-          const maxFieldValueByteLength = Buffer.from(value).byteLength + 1;
-
-          const payload = {
-            field: value,
-            field1: value,
-          };
-
-          await limitTest(payload, { maxFieldValueByteLength }, 'resolve');
-        });
+        it('valueByteLength < limit', () => limitTest(
+          { field: 'a', field1: 'value' },
+          // 'value' is 5 bytes, limit is 6 bytes
+          { maxFieldValueByteLength: 5 + 1 },
+          'resolve'
+        ));
         
-        it('valueByteLength == limit', async () => {
-          const valueUnderLimit = 'a';
-          const valueOverLimit = 'value';
-
-          const maxFieldValueByteLength = Buffer.from(valueOverLimit).byteLength;
-
-          const payload = {
-            field: valueUnderLimit,
-            field1: valueOverLimit,
-          };
-
-          await limitTest(payload, { maxFieldValueByteLength }, 'reject', FieldLimitError);
-        });
+        it('valueByteLength < limit', () => limitTest(
+          { field: 'a', field1: 'value' },
+          // 'value' is 5 bytes, limit is 5 bytes
+          { maxFieldValueByteLength: 5 },
+          'reject',
+          FieldLimitError
+        ));
   
-        it('valueByteLength > limit', async () => {
-          const valueUnderLimit = 'a';
-          const valueOverLimit = 'value';
-
-          const maxFieldValueByteLength = Buffer.from(valueOverLimit).byteLength - 1;
-
-          const payload = {
-            field: valueUnderLimit,
-            field1: valueOverLimit,
-          };
-
-          await limitTest(payload, { maxFieldValueByteLength }, 'reject', FieldLimitError);
-        });
+        it('valueByteLength < limit', () => limitTest(
+          { field: 'a', field1: 'value' },
+          { maxFieldValueByteLength: 4 },
+          'reject',
+          FieldLimitError
+        ));
       });
     });
   });
