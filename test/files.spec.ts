@@ -82,6 +82,51 @@ describe('Files', () => {
           }),
         ]);
       });
+
+      it('multiple files, field override', async () => {
+        const results = await createParseFormData({
+          dontTruncate: ['should not be truncated'],
+          truncate: ['should be truncated'],
+          truncateLonger: ['should be truncated'],
+        }, {
+          base: {
+            onFileByteLengthLimit: 'truncate',
+            maxFileByteLength: 9,
+          },
+          fileOverride: {
+            dontTruncate: {
+              maxFileByteLength: Infinity,
+            },
+            truncateLonger: {
+              maxFileByteLength: 15,
+            }
+          }
+        });
+  
+        const resultsWithContent = await Promise.all(results.map(async (result) => {
+          assert(result.skipped === false); // for TS
+          const content = await streamToBuffer(result.stream);
+          // TODO: What's the default string encoding?
+          const contentString = content.toString();
+          return { ...result, content: contentString };
+        }));
+  
+        // TODO: Automate test?
+        expect(resultsWithContent).toEqual([
+          expect.objectContaining({
+            field: 'dontTruncate',
+            content: 'should not be truncated',
+          }),
+          expect.objectContaining({
+            field: 'truncate',
+            content: 'should be',
+          }),
+          expect.objectContaining({
+            field: 'truncateLonger',
+            content: 'should be trunc',
+          }),
+        ]);
+      });
     });
   });
 });
