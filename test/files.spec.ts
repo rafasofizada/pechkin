@@ -8,9 +8,9 @@ import { PechkinConfig, PechkinFile } from '../src/types';
 
 describe('Files', () => {
   describe('1 file per field', () => {
-    it('single file', () => filesTest({ file: ['file content'] }));
+    it('single field', () => filesTest({ file: ['file content'] }));
 
-    it('multiple files', () => filesTest({
+    it('multiple fields', () => filesTest({
       file: ['file content'],
       file1: ['file content 1'],
       fileEmpty: [''],
@@ -19,9 +19,9 @@ describe('Files', () => {
   });
   
   describe('multiple files per field', () => {
-    it('single file', () => filesTest({ file: ['file content'] }));
+    it('single field', () => filesTest({ file: ['file content'] }));
 
-    it('multiple files', () => filesTest({
+    it('multiple fields', () => filesTest({
       file: ['file content 0 0', 'file content 0 1', 'file content 0 2'],
       file1: ['file content 1 0'],
     }));
