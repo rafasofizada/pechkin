@@ -9,7 +9,7 @@ export class SafeEventEmitter<EC extends EventConfig> {
     const hasListener = this.ee.emit(event as string, payload);
     
     if (!hasListener) {
-      throw new Error(`No listener attached for "${String(event)}". Payload was possibly "lost".`);
+      throw new Error(`No listener attached for "${String(event)}". Payload was possibly lost.`);
     }
   }
 

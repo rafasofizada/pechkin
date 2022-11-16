@@ -133,7 +133,7 @@ class FileIterator {
             field,
             stream: null,
             byteLength: Promise.resolve(NaN),
-            onTruncated: null,
+            truncated: null,
             skipFile: null,
             skipped,
             ...info,
@@ -150,7 +150,7 @@ class FileIterator {
           stream: measuredTruncatedStream,
           byteLength: measuredTruncatedStream.byteLengthEvent,
           // Throws if the stream is truncated and onFileByteLengthLimit === "throw"
-          onTruncated: measuredTruncatedStream.onTruncated.bind(measuredTruncatedStream),
+          truncated: measuredTruncatedStream.truncatedEvent,
           skipFile: () => skipFileStream(measuredTruncatedStream),
           skipped: false,
           ...info,
@@ -224,7 +224,7 @@ class SingleFileFieldController {
     // Add a listener for BusboyLimits.fileSize event ('limit')
     stream.addListener('limit', busboyLimitListener);
     // Cleanup and throw if configured
-    truncatedStream.onTruncated(() => {
+    truncatedStream.truncatedEvent.then(() => {
       stream.removeListener('limit', busboyLimitListener);
 
       if (this.limits.onFileByteLengthLimit === "throw") {

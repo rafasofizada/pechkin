@@ -27,10 +27,10 @@ describe('Files', () => {
     }));
   });
 
-  describe('byte length limit', () => {
+  describe('byte length limits / truncation', () => {
     describe('onFileByteLengthLimit = truncate', () => {
       it('multiple files', async () => {
-        const results = await createParseFormData({
+        const results = await createParseFileFormData({
           truncateAll: ['truncated 0 0', 'truncated 0 1'],
           truncateSome: ['no trunc', 'truncated'],
           truncateSingle: ['truncated 2 0'],
@@ -42,16 +42,8 @@ describe('Files', () => {
           },
         });
 
-        const resultsWithContent = await Promise.all(results.map(async (result) => {
-          assert(result.skipped === false); // for TS
-          const content = await streamToBuffer(result.stream);
-          // TODO: What's the default string encoding?
-          const contentString = content.toString();
-          return { ...result, content: contentString };
-        }));
-
         // TODO: Automate test?
-        expect(resultsWithContent).toEqual([
+        expect(results).toEqual([
           expect.objectContaining({
             field: 'truncateAll',
             content: 'truncated',
@@ -84,7 +76,7 @@ describe('Files', () => {
       });
 
       it('multiple files, field override', async () => {
-        const results = await createParseFormData({
+        const results = await createParseFileFormData({
           dontTruncate: ['should not be truncated'],
           truncate: ['should be truncated'],
           truncateLonger: ['should be truncated'],
@@ -103,16 +95,8 @@ describe('Files', () => {
           }
         });
   
-        const resultsWithContent = await Promise.all(results.map(async (result) => {
-          assert(result.skipped === false); // for TS
-          const content = await streamToBuffer(result.stream);
-          // TODO: What's the default string encoding?
-          const contentString = content.toString();
-          return { ...result, content: contentString };
-        }));
-  
         // TODO: Automate test?
-        expect(resultsWithContent).toEqual([
+        expect(results).toEqual([
           expect.objectContaining({
             field: 'dontTruncate',
             content: 'should not be truncated',
@@ -127,12 +111,46 @@ describe('Files', () => {
           }),
         ]);
       });
+
+      it('truncated (event / promise)', async () => {
+        const truncatedCallback = jest.fn();
+  
+        const results = await createParseFileFormData(
+          {
+            dontTruncate: ['should not be truncated'],
+            truncate: ['should be truncated'],
+          },
+          {
+            base: {
+              onFileByteLengthLimit: 'truncate',
+            },
+            fileOverride: {
+              truncate: {
+                maxFileByteLength: 1,
+              }
+            }
+          },
+        );
+  
+        const [notTruncated, truncated] = results;
+        assert(notTruncated.skipped === false); // for TS
+        assert(truncated.skipped === false); // for TS
+  
+        await truncated.truncated.then((...args) => truncatedCallback(...args));
+  
+        expect(truncatedCallback).toHaveBeenCalledTimes(1);
+        expect(truncatedCallback).toHaveBeenCalledWith(expect.objectContaining({ maxByteLength: 1 }));
+  
+        expect(truncated.truncated).resolves.toEqual(expect.objectContaining({ maxByteLength: 1 }));
+      });
     });
   });
 });
 
+type TestFile = PechkinFile & { content: string | null };
+
 async function filesTest(payload: Record<string, string[]>) {
-  const results = await createParseFormData(payload);
+  const results = await createParseFileFormData(payload);
 
   const fieldFileCounter = {};
 
@@ -142,29 +160,23 @@ async function filesTest(payload: Record<string, string[]>) {
     fieldFileCounter[field] ??= 0;
     const fileIndex = fieldFileCounter[field]++;
 
-    const originalContentBuffer = Buffer.from(payload[field][fileIndex]);
-
     expect(file).toEqual(
       expect.objectContaining({
         field,
         filename: `${field}-${fileIndex}.dat`,
         mimeType: 'application/octet-stream',
         skipped: false,
+        content: payload[field][fileIndex]
       })
     );
-
-    assert(file.skipped === false); // for TS
-    const resultContentBuffer = await streamToBuffer(file.stream);
-
-    expect(resultContentBuffer.compare(originalContentBuffer)).toBe(0);
-    expect(await file.byteLength).toBe(resultContentBuffer.length);
   }
 }
 
-async function createParseFormData(
+// TODO: Combine with fields.spec.ts, generic createParseFormData()
+async function createParseFileFormData(
   payload: Record<string, string[]>,
   config: PechkinConfig = { base: { maxTotalFileFieldCount: Infinity, maxFileCountPerField: Infinity } }
-): Promise<PechkinFile[]> {
+): Promise<TestFile[]> {
   // Defaults
   config.base = {
     maxFileCountPerField: Infinity,
@@ -187,13 +199,24 @@ async function createParseFormData(
 
   const { files } = await parseFormData(request, config);
   
-  const results = [] as PechkinFile[];
+  const results = [] as TestFile[];
 
   for await (const file of files) {
-    results.push(file);
+    const result = {
+      ...file,
+      content: file.stream ? await streamToString(file.stream) : null,
+    };
+
+    results.push(result);
   }
 
   return results;
+}
+
+// TODO: What's the default string encoding?
+async function streamToString(stream: Readable): Promise<string> {
+  const buffer = await streamToBuffer(stream);
+  return buffer.toString();
 }
 
 async function streamToBuffer(stream: Readable): Promise<Buffer> {

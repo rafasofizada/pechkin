@@ -4,7 +4,7 @@ import { SafeEventEmitter } from './SafeEventEmitter';
 import { TruncationInfo } from './types';
 
 export class ByteLengthTruncateStream extends Transform {
-  public readonly onTruncated: (listener: (payload: ByteLengthStreamEvents['truncated']) => void) => void;
+  public readonly truncatedEvent: Promise<ByteLengthStreamEvents['truncated']>;
   public readonly byteLengthEvent: Promise<ByteLengthStreamEvents['byteLength']>;
 
   private readonly ee: SafeEventEmitter<ByteLengthStreamEvents>;
@@ -18,7 +18,7 @@ export class ByteLengthTruncateStream extends Transform {
 
     // Event listeners need to be registered as soon as possible (during initialization),
     // to guarantee that they catch events in _transform()
-    this.onTruncated = this.ee.on.bind(this.ee, 'truncated');
+    this.truncatedEvent = this.ee.once('truncated').then(([byteLength]) => byteLength);
     this.byteLengthEvent = this.ee.once('byteLength').then(([byteLength]) => byteLength);
   }
 
