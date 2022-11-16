@@ -1,45 +1,94 @@
+import assert from 'assert';
 import FormData from 'form-data';
+import { Readable } from 'stream';
+import { IncomingMessage } from 'http';
 
 import { parseFormData } from '../src';
-import { IncomingMessage } from 'http';
-import { Readable } from 'stream';
 import { PechkinFile } from '../src/types';
-import assert from 'assert';
 
 describe('Files', () => {
-  it('single file', async () => {
-    const form = new FormData();
+  describe('1 file per field', () => {
+    it('single file', () => filesTest({ file: ['file content'] }));
 
-    form.append('file', Readable.from('file content'));
+    it('multiple files', () => filesTest({
+      file: ['file content'],
+      file1: ['file content 1'],
+      fileEmpty: [''],
+      file2: ['file content 2'],
+    }));
+  });
+  
+  describe('multiple files per field', () => {
+    it('single file', () => filesTest({ file: ['file content'] }));
 
-    const request = {
-      headers: form.getHeaders(),
-      __proto__: form,
-    } as unknown as IncomingMessage;
+    it('multiple files', () => filesTest({
+      file: ['file content 0 0', 'file content 0 1', 'file content 0 2'],
+      file1: ['file content 1 0'],
+    }));
+  });
+});
 
-    const { files } = await parseFormData(request);
-    
-    const results = [] as PechkinFile[];
+async function filesTest(payload: Record<string, string[]>) {
+  const results = await createParseFormData(payload);
 
-    for await (const file of files) {
-      results.push(file);
-    }
+  const fieldFileCounter = {};
 
-    expect(results).toEqual([
+  for (const [resultIndex, file] of results.entries()) {
+    const field = file.field;
+
+    fieldFileCounter[field] ??= 0;
+    const fileIndex = fieldFileCounter[field]++;
+
+    const originalContentBuffer = Buffer.from(payload[field][fileIndex]);
+
+    expect(file).toEqual(
       expect.objectContaining({
-        field: 'file',
+        field,
+        filename: `${field}-${fileIndex}.dat`,
         mimeType: 'application/octet-stream',
         skipped: false,
       })
-    ]);
+    );
 
-    const file = results[0];
     assert(file.skipped === false); // for TS
+    const resultContentBuffer = await streamToBuffer(file.stream);
 
-    file.skipFile();
+    expect(resultContentBuffer.compare(originalContentBuffer)).toBe(0);
+    expect(await file.byteLength).toBe(resultContentBuffer.length);
+  }
+}
 
-    expect(await results[0].byteLength).toBe(12);
-  });
+async function createParseFormData(payload: Record<string, string[]>): Promise<PechkinFile[]> {
+  const form = new FormData();
 
+  for (const [fieldname, files] of Object.entries(payload)) {
+    for (const [i, file] of files.entries()) {
+      form.append(fieldname, Readable.from(file), { filename: `${fieldname}-${i}.dat` });
+    }
+  }
 
-});
+  const request = {
+    headers: form.getHeaders(),
+    __proto__: form,
+  } as unknown as IncomingMessage;
+
+  const { files } = await parseFormData(request, { base: { maxTotalFileFieldCount: Infinity, maxFileCountPerField: Infinity } });
+  
+  const results = [] as PechkinFile[];
+
+  for await (const file of files) {
+    results.push(file);
+  }
+
+  return results;
+}
+
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+  const chunks = [] as Buffer[];
+
+  for await (const chunk of stream) {
+    chunks.push(chunk);
+  }
+
+  return Buffer.concat(chunks);
+}
