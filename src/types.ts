@@ -11,15 +11,15 @@ export type PechkinFile = busboy.FileInfo & {
   field: string;
   byteLength: Promise<number>; // NaN if skipped === true
 } & ({
-  stream: Readable;
-  truncated: Promise<TruncationInfo>;
-  skipFile: () => void;
   skipped: false;
+  stream: Readable;
+  onTruncated: (listener: (payload: TruncationInfo) => void) => void;
+  skipFile: () => void;
 } | {
-  stream: null;
-  truncated?: undefined;
-  skipFile?: undefined;
   skipped: true;
+  stream: null;
+  onTruncated: null;
+  skipFile: null;
 });
 
 export type PechkinConfig = {

@@ -5,19 +5,6 @@ import { parseFormData } from "../src";
 import { FieldLimitError, TotalLimitError } from "../src/error";
 import { Limits } from "../src/types";
 
-/**
- * Tests:
- * 
- * - Fields
- * - - Basic functionality
- * - - - Single field
- * - - - Multiple fields
- * - - Limits
- * - - - maxTotalFieldCount: >, ==, <
- * - - - maxFieldValueByteLength: >, ==, <
- * - - - TODO: maxFieldKeyByteLength: >, ==, <
- */
-
 describe('Fields', () => {
   it('single field', () => simpleFieldTest({ field: 'value' }));
 
