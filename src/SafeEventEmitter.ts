@@ -17,7 +17,7 @@ export class SafeEventEmitter<EC extends EventConfig> {
     this.ee.on(event as string, listener);
   }
 
-  once<E extends keyof EC>(event: E): Promise<EC[E]> {
+  once<E extends keyof EC>(event: E): Promise<EC[E] extends Array<any> ? EC[E] : [EC[E]] > {
     return once(this.ee, event as string) as Promise<EC[E]>;
   }
 }

@@ -19,7 +19,7 @@ export class ByteLengthTruncateStream extends Transform {
     // Event listeners need to be registered as soon as possible (during initialization),
     // to guarantee that they catch events in _transform()
     this.onTruncated = this.ee.on.bind(this.ee, 'truncated');
-    this.byteLengthEvent = this.ee.once('byteLength');
+    this.byteLengthEvent = this.ee.once('byteLength').then(([byteLength]) => byteLength);
   }
 
   // encoding = 'buffer': https://nodejs.org/api/stream.html#transform_transformchunk-encoding-callback
