@@ -1,6 +1,6 @@
 import { Transform, TransformCallback } from 'stream';
 
-import { SafeEventEmitter } from "./SafeEventEmitter";
+import { SafeEventEmitter } from './SafeEventEmitter';
 import { TruncationInfo } from './types';
 
 export class ByteLengthTruncateStream extends Transform {

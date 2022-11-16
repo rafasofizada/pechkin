@@ -34,7 +34,7 @@ describe('Files', () => {
     ]);
 
     const file = results[0];
-    assert(file.skipped === false);
+    assert(file.skipped === false); // for TS
 
     file.skipFile();
 
