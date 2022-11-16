@@ -114,6 +114,10 @@ describe('Files', () => {
 
       it('truncated (event / promise)', async () => {
         const truncatedCallback = jest.fn();
+
+        const truncateSettings = {
+          maxFileByteLength: 1,
+        };
   
         const results = await createParseFileFormData(
           {
@@ -125,9 +129,7 @@ describe('Files', () => {
               onFileByteLengthLimit: 'truncate',
             },
             fileOverride: {
-              truncate: {
-                maxFileByteLength: 1,
-              }
+              truncate: truncateSettings
             }
           },
         );
@@ -139,9 +141,9 @@ describe('Files', () => {
         await truncated.truncated.then((...args) => truncatedCallback(...args));
   
         expect(truncatedCallback).toHaveBeenCalledTimes(1);
-        expect(truncatedCallback).toHaveBeenCalledWith(expect.objectContaining({ maxByteLength: 1 }));
+        expect(truncatedCallback).toHaveBeenCalledWith(expect.objectContaining({ maxByteLength: truncateSettings.maxFileByteLength }));
   
-        expect(truncated.truncated).resolves.toEqual(expect.objectContaining({ maxByteLength: 1 }));
+        expect(truncated.truncated).resolves.toEqual(expect.objectContaining({ maxByteLength: truncateSettings.maxFileByteLength }));
       });
     });
   });
