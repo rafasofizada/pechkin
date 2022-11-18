@@ -1,5 +1,6 @@
 import * as busboy from "busboy";
 import { EventEmitter, Readable } from "stream";
+import { FileByteLengthInfo } from "./length";
 
 export type ParserDependency = EventEmitter;
 
@@ -9,17 +10,13 @@ export type BusboyFile = [field: string, stream: Readable, info: busboy.FileInfo
 
 export type PechkinFile = busboy.FileInfo & {
   field: string;
-  byteLength: Promise<number>; // NaN if skipped === true
+  byteLength: Promise<FileByteLengthInfo>;
 } & ({
   skipped: false;
   stream: Readable;
-  truncated: Promise<TruncationInfo>;
-  skipFile: () => void;
 } | {
   skipped: true;
   stream: null;
-  truncated: null;
-  skipFile: null;
 });
 
 export type PechkinConfig = {
@@ -42,15 +39,9 @@ export type Limits = {                                    // PECHKIN DEFAULT    
   maxTotalPartCount:               number;                //  100 + 10 = 110      "parts"                   Infinity 
   maxTotalFileFieldCount:          number;                //               1
   maxFileCountPerField:            number;                //               1
-  onFileCountPerFieldLimit:        "throw" | "skip";      //           throw      
-  onFileByteLengthLimit:           "throw" | "truncate";  //           throw      stream.truncated,
+  abortOnFileCountPerFieldLimit:   boolean;               //            true      
+  abortOnFileByteLengthLimit:      boolean;               //            true      stream.truncated,
                                                           //                      "limit"                  
 };
 
-export type FileFieldLimits = Pick<Limits, "maxFileByteLength" | "maxFileCountPerField" | "onFileCountPerFieldLimit" | "onFileByteLengthLimit">;
-
-export type TruncationInfo = {
-  maxByteLength: number;
-  readBytes: number;
-  lastChunkByteLength: number;
-};
+export type FileFieldLimits = Pick<Limits, "maxFileByteLength" | "maxFileCountPerField" | "abortOnFileCountPerFieldLimit" | "abortOnFileByteLengthLimit">;

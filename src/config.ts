@@ -40,7 +40,7 @@ export const defaultPechkinConfig: RequiredPechkinConfig = {
     maxTotalFileCount: 10,
     maxFileByteLength: 50 * 1024 * 1024,
     maxFileCountPerField: 1,
-    onFileCountPerFieldLimit: "throw",
-    onFileByteLengthLimit: "throw",
+    abortOnFileCountPerFieldLimit: true,
+    abortOnFileByteLengthLimit: true,
   }
 };

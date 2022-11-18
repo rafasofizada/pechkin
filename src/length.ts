@@ -1,11 +1,9 @@
 import { Transform, TransformCallback } from 'stream';
 
 import { SafeEventEmitter } from './SafeEventEmitter';
-import { TruncationInfo } from './types';
 
 export class ByteLengthTruncateStream extends Transform {
-  public readonly truncatedEvent: Promise<ByteLengthStreamEvents['truncated']>;
-  public readonly byteLengthEvent: Promise<ByteLengthStreamEvents['byteLength']>;
+  public readonly byteLengthEvent: Promise<FileByteLengthInfo>;
 
   private readonly ee: SafeEventEmitter<ByteLengthStreamEvents>;
   private truncated: boolean = false;
@@ -16,51 +14,54 @@ export class ByteLengthTruncateStream extends Transform {
 
     this.ee = new SafeEventEmitter();
 
-    // Event listeners need to be registered as soon as possible (during initialization),
-    // to guarantee that they catch events in _transform()
-    this.truncatedEvent = this.ee.once('truncated').then(([byteLength]) => byteLength);
-    this.byteLengthEvent = this.ee.once('byteLength').then(([byteLength]) => byteLength);
+    // Snapshot state on 'byteLength'. `this.truncated` and `this.readBytes` are primitives, so we don't need to worry about
+    // them changing after the event is emitted.
+    this.byteLengthEvent = new Promise((resolve) => {
+      this.ee.on('byteLength', () => {
+        return resolve({
+          truncated: this.truncated,
+          readBytes: this.readBytes,
+        });
+      });
+    });
   }
 
   // encoding = 'buffer': https://nodejs.org/api/stream.html#transform_transformchunk-encoding-callback
   public _transform(chunk: Buffer | string, encoding: BufferEncoding | 'buffer', callback: TransformCallback): void {
-    const buffer = encoding === 'buffer'
-      ? chunk as Buffer
-      : Buffer.from(chunk as string, encoding);
-
-    this.readBytes += buffer.byteLength;
-
     if (this.truncated) {
       return callback();
     }
 
-    if (this.readBytes > this.maxByteLength) {
-      this.truncated = true;
-      const truncatedChunk = buffer.subarray(0, this.maxByteLength - this.readBytes);
-
-      this.ee.emit('truncated', {
-        maxByteLength: this.maxByteLength,
-        readBytes: this.readBytes,
-        lastChunkByteLength: buffer.byteLength
-      });
-
-      // TODO: why does `this.end()` halt the stream?
+    const chunkBuffer = encoding === 'buffer'
+      ? chunk as Buffer
+      : Buffer.from(chunk as string, encoding);
+    
+    if (this.readBytes + chunkBuffer.byteLength > this.maxByteLength) {
+      const truncatedChunk = chunkBuffer.subarray(0, this.maxByteLength - this.readBytes);
       this.readBytes += truncatedChunk.byteLength;
+      this.truncated = true;
+
+      this.ee.emit('byteLength', undefined);
 
       return callback(null, truncatedChunk);
     }
 
+    this.readBytes += chunkBuffer.byteLength;
     return callback(null, chunk);
   }
 
   public _flush(callback: TransformCallback): void {
-    this.ee.emit('byteLength', this.readBytes);
+    this.ee.emit('byteLength', undefined);
 
     return callback();
   }
 }
 
+export type FileByteLengthInfo = {
+  truncated: boolean;
+  readBytes: number;
+};
+
 type ByteLengthStreamEvents = {
-  truncated: TruncationInfo,
-  byteLength: number,
+  byteLength: void;
 };

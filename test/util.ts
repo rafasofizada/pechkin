@@ -4,12 +4,14 @@ import { IncomingMessage } from 'http';
 
 import { parseFormData } from '../src';
 import { Fields, FileFieldLimits, Limits, PechkinConfig, PechkinFile } from '../src/types';
+import { FileByteLengthInfo } from '../src/length';
 
-export type TestFile = PechkinFile & { content: string | null };
+export type TestFile = Omit<PechkinFile, 'byteLength' | 'stream'> & { content: string | null; byteLength: FileByteLengthInfo; };
 export type TestFormDataFields<S extends string = string> = `${S}__file` | `${S}__field`;
 export type TestFormDataPayload<F extends TestFormDataFields> = Record<F, string[]>;
-export type TestFormDataParseResult = { fields: Fields, results: TestFile[] };
+export type TestFormDataParseResult = { fields: Fields, files: TestFile[] };
 
+// TODO: Turn to async generator
 export async function createParseFormData<F extends TestFormDataFields>(
   payload: TestFormDataPayload<F>,
   {
@@ -29,8 +31,8 @@ export async function createParseFormData<F extends TestFormDataFields>(
   // Defaults
   const config = {
     base: {
-      maxFileCountPerField: Infinity,
       maxTotalFileFieldCount: Infinity,
+      maxFileCountPerField: Infinity,
       ...base,
     },
     fileOverride: payloadFormat(fileOverride),
@@ -52,25 +54,29 @@ export async function createParseFormData<F extends TestFormDataFields>(
     }
   }
 
-  const request = {
-    headers: form.getHeaders(),
-    __proto__: form,
-  } as unknown as IncomingMessage;
+  const request: IncomingMessage = Object.create(form, { headers: { value: form.getHeaders() } });
 
   const { fields, files } = await parseFormData(request, config);
   
   const results = [] as TestFile[];
 
-  for await (const file of files) {
-    const result = {
-      ...file,
-      content: file.stream ? await streamToString(file.stream) : null,
-    };
+  try {
+    for await (const { stream, byteLength, ...restFile } of files) {
+      const result = {
+        ...restFile,
+        content: stream
+          ? await streamToString(stream)
+          : null,
+        byteLength: await byteLength,
+      };
 
-    results.push(result);
+      results.push(result);
+    }
+  } catch (error) {
+    console.warn(error);
   }
 
-  return { fields, results };
+  return { fields, files: results };
 }
 
 export function payloadFormat<O extends Record<string, any>>(object: O): { [K in keyof O extends TestFormDataFields<infer F> ? F : never]: O[K] } {

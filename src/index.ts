@@ -1,11 +1,10 @@
 import { on } from 'events';
 import busboy from 'busboy';
-import { Readable } from 'stream';
 import { IncomingMessage } from 'http';
 
 import { FieldLimitError, TotalLimitError } from './error';
 import { defaultPechkinConfig, pechkinConfigToBusboyLimits } from './config';
-import { BusboyFile, Fields, ParserDependency, FileFieldLimits, PechkinFile, RequiredPechkinConfig, PechkinConfig} from './types';
+import { BusboyFile, Fields, ParserDependency, FileFieldLimits, PechkinFile, RequiredPechkinConfig, PechkinConfig, Limits } from './types';
 import { ByteLengthTruncateStream } from './length';
 
 export async function parseFormData(
@@ -72,14 +71,18 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
 
 class FileIterator {
   private readonly iterator: AsyncIterableIterator<BusboyFile>;
-  private readonly fileController: FileController;
+  private readonly fileFields: Map<
+    string,
+    {
+      count: number;
+      limits: FileFieldLimits;
+    }
+  > = new Map();
 
   constructor(
     private readonly parser: busboy.Busboy,
     private readonly config: RequiredPechkinConfig,
   ) {
-    this.fileController = new FileController(config);
-
     this.iterator = on(this.parser, 'file');
 
     // AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
@@ -116,43 +119,65 @@ class FileIterator {
 
       const [field, stream, info] = iterElement.value;
 
-      const [totalFileFieldCountError, fileFieldController] =  this.fileController.getFieldControllerUpsert(field);
-      if (totalFileFieldCountError) throw totalFileFieldCountError;
+      if (!this.fileFields.has(field)) {
+        this.fileFields.set(field, {
+          count: 0,
+          limits: fileFieldLimits(this.config, field),
+        });
+      }
 
-      const [fileCountPerFieldError, count] = fileFieldController.limitCount();
-      if (fileCountPerFieldError) throw fileCountPerFieldError;
+      if ([...this.fileFields.keys()].length > this.config.base.maxTotalFileFieldCount) {
+        throw new TotalLimitError("maxTotalFileFieldCount", this.config.base.maxTotalFileFieldCount);
+      }
 
-      const skipped = Number.isNaN(count);
+      const fileField = this.fileFields.get(field);
 
-      if (skipped) {
-        skipFileStream(stream);
+      if (fileField.count + 1 > fileField.limits.maxFileCountPerField) {
+        // Abort...
+        if (fileField.limits.abortOnFileCountPerFieldLimit) {
+          // TODO: Abort the entire request in return()/cleanup()
+          throw new FieldLimitError("maxFileCountPerField", field, fileField.limits.maxFileCountPerField);
+        }
+
+        // ...or skip
+        stream.resume();
 
         return {
           done: false,
           value: {
             field,
             stream: null,
-            byteLength: Promise.resolve(NaN),
-            truncated: null,
-            skipFile: null,
-            skipped,
+            skipped: true,
+            byteLength: Promise.resolve({ truncated: false, readBytes: 0 }),
             ...info,
           },
         };
       }
+      
+      fileField.count += 1;
 
-      const measuredTruncatedStream = fileFieldController.processFileStream(stream);
+      const truncatedStream = stream.pipe(new ByteLengthTruncateStream(fileField.limits.maxFileByteLength));
+  
+      // Busboy's "byteLength" analogue
+      stream.addListener('limit', busboyLimitListener);
 
       return {
         done: false,
         value: {
           field,
-          stream: measuredTruncatedStream,
-          byteLength: measuredTruncatedStream.byteLengthEvent,
-          // Throws if the stream is truncated and onFileByteLengthLimit === "throw"
-          truncated: measuredTruncatedStream.truncatedEvent,
-          skipFile: () => skipFileStream(measuredTruncatedStream),
+          stream: truncatedStream,
           skipped: false,
+          byteLength: truncatedStream.byteLengthEvent
+            .then((payload) => {
+              stream.removeListener('limit', busboyLimitListener);
+
+              if (payload.truncated && fileField.limits.abortOnFileByteLengthLimit) {
+                // TODO: Abort the entire request in return()/cleanup()
+                throw new FieldLimitError("maxFileByteLength", field, fileField.limits.maxFileByteLength);
+              }
+
+              return payload;
+            }),
           ...info,
         }
       };
@@ -168,87 +193,27 @@ class FileIterator {
       this.parser.destroy();
       return asyncIterator.return!() as Promise<IteratorReturnResult<undefined>>;
     };
-    
-    return {
-      next,
-      return: cleanup,
-      __proto__: asyncIterator
-    } as AsyncIterator<PechkinFile>;
-  }
-}
 
-class FileController {
-  private readonly fileFieldControllers: Record<string, SingleFileFieldController> = {};
-
-  constructor(private readonly config: RequiredPechkinConfig) {}
-
-  getFieldControllerUpsert(field: string): [TotalLimitError] | [null, SingleFileFieldController] {
-    this.fileFieldControllers[field] ??= new SingleFileFieldController(field, this.config);
-
-    if (Object.keys(this.fileFieldControllers).length > this.config.base.maxTotalFileFieldCount) {
-      return [new TotalLimitError("maxTotalFileFieldCount")];
-    }
-
-    return [null, this.fileFieldControllers[field]];
-  }
-}
-
-class SingleFileFieldController {
-  private count: number = 0;
-  private readonly limits: FileFieldLimits;
-
-  constructor(
-    private readonly field: string,
-    config: RequiredPechkinConfig
-  ) {
-    this.limits = this.fileFieldLimits(field, config);
-  }
-
-  limitCount(): [FieldLimitError | null, number]  {
-    this.count += 1;
-
-    if (this.count > this.limits.maxFileCountPerField) {
-      return this.limits.onFileCountPerFieldLimit === "throw"
-        ? [new FieldLimitError("maxFileCountPerField", this.field, this.limits.maxFileCountPerField), NaN]
-        : [null, NaN];
-    }
-
-    return [null, this.count];
-  }
-
-  processFileStream(stream: Readable): ByteLengthTruncateStream {
-    const truncatedStream = stream.pipe(
-      new ByteLengthTruncateStream(this.limits.maxFileByteLength)
-    );
-
-    // Add a listener for BusboyLimits.fileSize event ('limit')
-    stream.addListener('limit', busboyLimitListener);
-    // Cleanup and throw if configured
-    truncatedStream.truncatedEvent.then(() => {
-      stream.removeListener('limit', busboyLimitListener);
-
-      if (this.limits.onFileByteLengthLimit === "throw") {
-        throw new FieldLimitError("maxFileByteLength", this.field, this.limits.maxFileByteLength);
-      }
+    return Object.create(asyncIterator, {
+      next: { value: next, enumerable: true },
+      return: { value: cleanup, enumerable: true },
     });
-
-    return truncatedStream;
-  }
-
-  private fileFieldLimits(field: string, config: RequiredPechkinConfig): FileFieldLimits {
-    return {
-      ...config.base,
-      ...(config.fileOverride?.[field] ?? {}),
-    };
   }
 }
 
-function skipFileStream(stream: Readable) {
-  stream.resume();
+function fileFieldLimits(config: RequiredPechkinConfig, field: string): FileFieldLimits {
+  return {
+    ...config.base,
+    ...(config.fileOverride?.[field] ?? {}),
+  };
 }
 
 function busboyLimitListener(...busboyArgs: unknown[]) {
   throw new Error(
-    `Busboy 'limit' event. Busboy 'fileSize' limit set by pechkinConfigToBusboyLimits(), for some reason, was reached before Pechkin 'maxFileByteLength' was reached. This should not happen, please report this issue. Busboy args: ${JSON.stringify(busboyArgs)}`
+    `\
+Busboy 'limit' event.
+Busboy 'fileSize' limit set by pechkinConfigToBusboyLimits(), for some reason, was reached before Pechkin 'maxFileByteLength' was reached.
+This should not happen, please report this issue.
+Busboy args: ${JSON.stringify(busboyArgs, null, 2)}`
   );
 };
