@@ -17,15 +17,21 @@ export function pechkinConfigToBusboyLimits(
 ): busboy.Limits {
   return {
     headerPairs:    maxTotalHeaderPairs,
-    parts:          maxTotalPartCount,
-    files:          maxTotalFileCount,
+    // `parts`, `files`, `fields` trigger `partsLimit`, `filesLimit`, `fieldsLimit` respectively.
+    // the events are triggered UPON reaching the provided value (not exceeding it),
+    // which makes the limits exclusive. So we add 1 to each limit to make them inclusive.
+    parts:          maxTotalPartCount + 1,
+    files:          maxTotalFileCount + 1,
+    fields:         maxTotalFieldCount + 1,
+    fieldNameSize:  maxFieldKeyByteLength,
+    fieldSize:      maxFieldValueByteLength,
+    // Same mechanism as with parts/files/fields is with fileSize,
+    // but we add 1kb to the limit to account for possible errors,
+    // like boundary bytes being counted into the limit.
     fileSize:       1024 + Math.max(
                       maxFileByteLength,
                       ...Object.values(fileOverride).map(f => f.maxFileByteLength).filter(x => !Number.isNaN(x))
                     ),
-    fields:         maxTotalFieldCount,
-    fieldNameSize:  maxFieldKeyByteLength,
-    fieldSize:      maxFieldValueByteLength,
   };
 }
 
