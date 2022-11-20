@@ -1,3 +1,5 @@
+import { expect, describe, it } from 'vitest';
+
 import { FieldLimitError, TotalLimitError } from "../src/error";
 import { Limits } from "../src/types";
 import { createParseFormData, payloadFormat, TestFormDataPayload } from "./util";
@@ -12,7 +14,7 @@ describe('Fields', () => {
     field3__field: [''],
   }));
 
-  describe('field limits', () => {
+  describe('limits', () => {
     // TODO: maxFieldKeyByteLength
 
     describe('maxTotalFieldCount', () => {
@@ -22,13 +24,13 @@ describe('Fields', () => {
         'resolve'
       ));
       
-      it('count < limit', () => limitTest(
+      it('count = limit', () => limitTest(
         { field__field: ['value'], field1__field: ['value'] },
         { maxTotalFieldCount: 2 },
         'resolve'
       ));
 
-      it('count < limit', () => limitTest(
+      it('count > limit', () => limitTest(
         { field__field: ['value'], field1__field: ['value'] },
         { maxTotalFieldCount: 1 },
         'reject',
@@ -108,7 +110,7 @@ async function limitTest<F extends `${string}__field`>(
     const { fields } = await createParseFormData(payload, { base: limit });
     expect(fields).toEqual(payloadFormat(payload));
   } else {
-    expect(createParseFormData(payload, { base: limit })).rejects.toThrow(errorClass);
+    await expect(createParseFormData(payload, { base: limit })).rejects.toThrow(errorClass);
   }
 }
 

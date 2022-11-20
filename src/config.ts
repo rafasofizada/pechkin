@@ -20,9 +20,10 @@ export function pechkinConfigToBusboyLimits(
     // `parts`, `files`, `fields` trigger `partsLimit`, `filesLimit`, `fieldsLimit` respectively.
     // the events are triggered UPON reaching the provided value (not exceeding it),
     // which makes the limits exclusive. So we add 1 to each limit to make them inclusive.
+    // NEW: filesLimit & fieldsLimit ARE exclusive, partsLimit is inclusive (investigate)
     parts:          maxTotalPartCount + 1,
-    files:          maxTotalFileCount + 1,
-    fields:         maxTotalFieldCount + 1,
+    files:          maxTotalFileCount,
+    fields:         maxTotalFieldCount,
     fieldNameSize:  maxFieldKeyByteLength,
     fieldSize:      maxFieldValueByteLength,
     // Same mechanism as with parts/files/fields is with fileSize,

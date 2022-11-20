@@ -55,25 +55,20 @@ export async function createParseFormData<F extends TestFormDataFields>(
   }
 
   const request: IncomingMessage = Object.create(form, { headers: { value: form.getHeaders() } });
-
   const { fields, files } = await parseFormData(request, config);
   
   const results = [] as TestFile[];
 
-  try {
-    for await (const { stream, byteLength, ...restFile } of files) {
-      const result = {
-        ...restFile,
-        content: stream
-          ? await streamToString(stream)
-          : null,
-        byteLength: await byteLength,
-      };
+  for await (const { stream, byteLength, ...restFile } of files) {
+    const result = {
+      ...restFile,
+      content: stream
+        ? await streamToString(stream)
+        : null,
+      byteLength: await byteLength,
+    };
 
-      results.push(result);
-    }
-  } catch (error) {
-    console.warn(error);
+    results.push(result);
   }
 
   return { fields, files: results };

@@ -15,12 +15,13 @@ export async function parseFormData(
   fields: Fields,
   files: FileIterator,
 }> {
+  // TODO: Test, separate into a function
   const config = {
-    ...(pechkinConfig ?? defaultPechkinConfig),
     base: {
       ...defaultPechkinConfig.base,
       ...(pechkinConfig?.base ?? {}),
-    }
+    },
+    fileOverride: pechkinConfig.fileOverride,
   } as RequiredPechkinConfig;
 
   const parser = busboy({
@@ -31,11 +32,14 @@ export async function parseFormData(
     limits: pechkinConfigToBusboyLimits(config),
   });
 
+  // TODO: On 'maxTotalPartCount', both FileIterator and FieldsPromise throw an error,
+  // and apparently only one of them is caught.
   const fields = FieldsPromise(parser);
   const files = new FileIterator(parser, config);
   
   request.pipe(parser);
 
+  // TODO: Should fields be awaited, or passed as a promise?
   return { fields: await fields, files };
 }
 
@@ -44,6 +48,10 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
     const fields: Fields = {};
 
     parser
+      // TODO: Add a limit on maxFieldKeyByteLength
+      // TODO: Test maxFieldKeyByteLength
+      // TODO: Test maxFieldValueByteLength
+      // TODO: Test 'error' and 'finish' events
       .on('field', (name: string, value: string, info: busboy.FieldInfo) => {
         // Bug in Busboy (https://github.com/mscdex/busboy/issues/6)
         if (info.nameTruncated) reject(new FieldLimitError("maxFieldKeyByteLength", name));
@@ -88,6 +96,9 @@ class FileIterator {
     // AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
     // from the Node.js source code for on(), the returned object always providers
     // implementations for next(), return(), throw().
+
+    // TODO: Test that this.iterator.throw() and this.iterator[Symbol.asyncIterator].throw() refer
+    // to the same function.
     this.parser
       .once('partsLimit', () => {
         return this.iterator.throw!(new TotalLimitError("maxTotalPartCount"));
@@ -111,7 +122,7 @@ class FileIterator {
       // https://github.com/nodejs/node/blob/main/lib/events.js#L1017
       const iterElement = await asyncIterator.next();
     
-      // === true to narrow down types
+      // `=== true` to narrow down types
       // TODO: Research/report issue to TypeScript?
       if (iterElement.done === true) {
         return { done: true, value: undefined };
@@ -120,12 +131,14 @@ class FileIterator {
       const [field, stream, info] = iterElement.value;
 
       if (!this.fileFields.has(field)) {
+        // TODO: Test the fileFields exists/not->set functionality 
         this.fileFields.set(field, {
           count: 0,
           limits: fileFieldLimits(this.config, field),
         });
       }
 
+      // TODO: Test maxTotalFileFieldCount
       if ([...this.fileFields.keys()].length > this.config.base.maxTotalFileFieldCount) {
         throw new TotalLimitError("maxTotalFileFieldCount", this.config.base.maxTotalFileFieldCount);
       }
@@ -189,6 +202,7 @@ class FileIterator {
      * the return() method of the iterator is called to perform any cleanup.
      * The returned promise is awaited before the loop exits.
      */
+    // TODO: Test cleanup
     const cleanup = (): Promise<IteratorReturnResult<undefined>> => {
       this.parser.destroy();
       return asyncIterator.return!() as Promise<IteratorReturnResult<undefined>>;

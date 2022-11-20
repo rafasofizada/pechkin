@@ -1,6 +1,10 @@
-import assert from 'assert';
-import { FieldLimitError } from '../src/error';
-import { createParseFormData } from './util';
+import { expect, describe, it } from 'vitest';
+import { Limits } from '../src/types';
+import { TotalLimitError } from '../src/error';
+import { createParseFormData, TestFormDataPayload } from './util';
+
+// TODO: maxFileCountPerField
+// TODO: maxTotalFileFieldCount
 
 describe('Files', () => {
   describe('1 file per field', () => {
@@ -23,139 +27,163 @@ describe('Files', () => {
     }));
   });
 
-  describe('byte length limits / truncation', () => {
-    describe('abortOnFileByteLengthLimit = false', () => {
-      it('multiple files', async () => {
-        const { files } = await createParseFormData({
-          truncateAll__file: ['truncated 0 0', 'truncated 0 1'],
-          truncateSome__file: ['not trunc', 'truncated 1 0'],
-          truncateSingle__file: ['truncated 2 0'],
-          noTruncation__file: ['not trunc', 'no trunca'],
-        }, {
-          base: {
-            abortOnFileByteLengthLimit: false,
-            maxFileByteLength: 9,
-          },
-        });
+  describe('limits', () => {
+    describe('maxTotalFileCount', () => {
+      it('count < limit', () => limitTest(
+        { file__file: ['value'], file1__file: ['value'] },
+        { maxTotalFileCount: 3 },
+        'resolve'
+      ));
+      
+      it('count = limit', () => limitTest(
+        { file__file: ['value'], file1__file: ['value'] },
+        { maxTotalFileCount: 2 },
+        'resolve'
+      ));
 
-        // TODO: Automate test?
-        expect(files).toEqual([
-          expect.objectContaining({
-            field: 'truncateAll',
-            content: 'truncated',
-            byteLength: { truncated: true, readBytes: 9 },
-          }),
-          expect.objectContaining({
-            field: 'truncateAll',
-            content: 'truncated',
-            byteLength: { truncated: true, readBytes: 9 },
-          }),
-          expect.objectContaining({
-            field: 'truncateSome',
-            content: 'not trunc',
-            byteLength: { truncated: false, readBytes: 9 },
-          }),
-          expect.objectContaining({
-            field: 'truncateSome',
-            content: 'truncated',
-            byteLength: { truncated: true, readBytes: 9 },
-          }),
-          expect.objectContaining({
-            field: 'truncateSingle',
-            content: 'truncated',
-            byteLength: { truncated: true, readBytes: 9 },
-          }),
-          expect.objectContaining({
-            field: 'noTruncation',
-            content: 'not trunc',
-            byteLength: { truncated: false, readBytes: 9 },
-          }),
-          expect.objectContaining({
-            field: 'noTruncation',
-            content: 'no trunca',
-            byteLength: { truncated: false, readBytes: 9 },
-          }),
-        ]);
-      });
-
-      it('multiple files, w/ field override', async () => {
-        const { files } = await createParseFormData({
-          dontTruncate__file: ['should not be truncated'],
-          truncate__file: ['should be truncated'],
-          truncateLonger__file: ['should be truncated'],
-        }, {
-          base: {
-            abortOnFileByteLengthLimit: false,
-            maxFileByteLength: 9,
-          },
-          fileOverride: {
-            dontTruncate__file: {
-              maxFileByteLength: Infinity,
+      it('count > limit', () => limitTest(
+        { file__file: ['value'], file1__file: ['value'] },
+        { maxTotalFileCount: 1 },
+        'reject',
+        TotalLimitError
+      ));
+    });
+    
+    describe('byte length limits / truncation', () => {
+      describe('abortOnFileByteLengthLimit = false', () => {
+        it('multiple files', async () => {
+          const { files } = await createParseFormData({
+            truncateAll__file: ['truncated 0 0', 'truncated 0 1'],
+            truncateSome__file: ['not trunc', 'truncated 1 0'],
+            truncateSingle__file: ['truncated 2 0'],
+            noTruncation__file: ['not trunc', 'no trunca'],
+          }, {
+            base: {
+              abortOnFileByteLengthLimit: false,
+              maxFileByteLength: 9,
             },
-            truncateLonger__file: {
-              maxFileByteLength: 15,
-            }
-          }
+          });
+  
+          // TODO: Automate test?
+          expect(files).toEqual([
+            expect.objectContaining({
+              field: 'truncateAll',
+              content: 'truncated',
+              byteLength: { truncated: true, readBytes: 9 },
+            }),
+            expect.objectContaining({
+              field: 'truncateAll',
+              content: 'truncated',
+              byteLength: { truncated: true, readBytes: 9 },
+            }),
+            expect.objectContaining({
+              field: 'truncateSome',
+              content: 'not trunc',
+              byteLength: { truncated: false, readBytes: 9 },
+            }),
+            expect.objectContaining({
+              field: 'truncateSome',
+              content: 'truncated',
+              byteLength: { truncated: true, readBytes: 9 },
+            }),
+            expect.objectContaining({
+              field: 'truncateSingle',
+              content: 'truncated',
+              byteLength: { truncated: true, readBytes: 9 },
+            }),
+            expect.objectContaining({
+              field: 'noTruncation',
+              content: 'not trunc',
+              byteLength: { truncated: false, readBytes: 9 },
+            }),
+            expect.objectContaining({
+              field: 'noTruncation',
+              content: 'no trunca',
+              byteLength: { truncated: false, readBytes: 9 },
+            }),
+          ]);
         });
   
-        // TODO: Automate test?
-        expect(files).toEqual([
-          expect.objectContaining({
-            field: 'dontTruncate',
-            content: 'should not be truncated',
-            byteLength: { truncated: false, readBytes: 23 },
-          }),
-          expect.objectContaining({
-            field: 'truncate',
-            content: 'should be',
-            byteLength: { truncated: true, readBytes: 9 },
-          }),
-          expect.objectContaining({
-            field: 'truncateLonger',
-            content: 'should be trunc',
-            byteLength: { truncated: true, readBytes: 15 },
-          }),
-        ]);
-      });
-    });
-
-    // TODO: Actually test if error is thrown
-    describe('abortOnFileByteLengthLimit = true', () => {
-      it('multiple files', async () => {
-        const { files } = await createParseFormData({
-          noTruncation__file: ['no trunc'],
-          truncateSomeAbort__file: ['no trunc', 'truncated 0 0'],
-          unreachable__file: ['truncated 1 0'],
-        }, {
-          base: {
-            abortOnFileByteLengthLimit: true,
-            maxFileByteLength: 9,
-          },
+        it('multiple files, w/ field override', async () => {
+          const { files } = await createParseFormData({
+            dontTruncate__file: ['should not be truncated'],
+            truncate__file: ['should be truncated'],
+            truncateLonger__file: ['should be truncated'],
+          }, {
+            base: {
+              abortOnFileByteLengthLimit: false,
+              maxFileByteLength: 9,
+            },
+            fileOverride: {
+              dontTruncate__file: {
+                maxFileByteLength: Infinity,
+              },
+              truncateLonger__file: {
+                maxFileByteLength: 15,
+              }
+            }
+          });
+    
+          // TODO: Automate test?
+          expect(files).toEqual([
+            expect.objectContaining({
+              field: 'dontTruncate',
+              content: 'should not be truncated',
+              byteLength: { truncated: false, readBytes: 23 },
+            }),
+            expect.objectContaining({
+              field: 'truncate',
+              content: 'should be',
+              byteLength: { truncated: true, readBytes: 9 },
+            }),
+            expect.objectContaining({
+              field: 'truncateLonger',
+              content: 'should be trunc',
+              byteLength: { truncated: true, readBytes: 15 },
+            }),
+          ]);
         });
-
-        // `truncateAbort__file` should be omitted, because an error is thrown
-        // (there's a try/catch in createParseFormData that silences the error),
-        // `unreachable_file` is never reached,
-        // so we expect only the `dontTruncate_file`
-        expect(files).toEqual([
-          expect.objectContaining({
-            field: 'noTruncation',
-            content: 'no trunc',
-            byteLength: { readBytes: 8, truncated: false },
-          }),
-          expect.objectContaining({
-            field: 'truncateSomeAbort',
-            content: 'no trunc',
-            byteLength: { readBytes: 8, truncated: false },
-          }),
-        ]);
       });
+  
+      // TODO: Actually test if error is thrown
+      // TODO: createParseFormData as a generator
+      // describe('abortOnFileByteLengthLimit = true', () => {
+      //   it('multiple files', async () => {
+      //     const { files } = await createParseFormData({
+      //       noTruncation__file: ['no trunc'],
+      //       truncateSomeAbort__file: ['no trunc', 'truncated 0 0'],
+      //       unreachable__file: ['truncated 1 0'],
+      //     }, {
+      //       base: {
+      //         abortOnFileByteLengthLimit: true,
+      //         maxFileByteLength: 9,
+      //       },
+      //     });
+  
+      //     // `truncateAbort__file` should be omitted, because an error is thrown
+      //     // (there's a try/catch in createParseFormData that silences the error),
+      //     // `unreachable_file` is never reached,
+      //     // so we expect only the `dontTruncate_file`
+      //     expect(files).toEqual([
+      //       expect.objectContaining({
+      //         field: 'noTruncation',
+      //         content: 'no trunc',
+      //         byteLength: { readBytes: 8, truncated: false },
+      //       }),
+      //       expect.objectContaining({
+      //         field: 'truncateSomeAbort',
+      //         content: 'no trunc',
+      //         byteLength: { readBytes: 8, truncated: false },
+      //       }),
+      //     ]);
+      //   });
+      // });
     });
   });
 });
 
-async function filesTest(payload: Record<`${string}__file`, string[]>) {
-  const { files } = await createParseFormData(payload);
+async function filesTest(payload: Record<`${string}__file`, string[]>, limit: Partial<Limits> = {}) {
+  const { files } = await createParseFormData(payload, { base: limit });
 
   const fieldFileCounter = {};
 
@@ -175,5 +203,29 @@ async function filesTest(payload: Record<`${string}__file`, string[]>) {
         content: payload[originalField][fileIndex]
       })
     );
+  }
+}
+
+async function limitTest<F extends `${string}__file`>(
+  payload: TestFormDataPayload<F>,
+  limit: Partial<Limits>,
+  expectation: 'resolve',
+): Promise<void>;
+async function limitTest<F extends `${string}__file`>(
+  payload: TestFormDataPayload<F>,
+  limit: Partial<Limits>,
+  expectation: 'reject',
+  errorClass: any,
+): Promise<void>;
+async function limitTest<F extends `${string}__file`>(
+  payload: TestFormDataPayload<F>,
+  limit: Partial<Limits>,
+  expectation: 'resolve' | 'reject',
+  errorClass?: any,
+): Promise<void> {
+  if (expectation === 'resolve') {
+    await filesTest(payload, limit);
+  } else {
+    await expect(createParseFormData(payload, { base: limit })).rejects.toThrow(errorClass);
   }
 }
