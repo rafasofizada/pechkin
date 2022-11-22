@@ -1,7 +1,5 @@
 import { expect, describe, it } from 'vitest';
-import { Limits } from '../src/types';
-import { TotalLimitError } from '../src/error';
-import { createParseFormData, TestFormDataPayload } from './util';
+import { createParseFormData, filesTest  } from './util';
 
 // TODO: maxFileCountPerField
 // TODO: maxTotalFileFieldCount
@@ -28,27 +26,6 @@ describe('Files', () => {
   });
 
   describe('limits', () => {
-    describe('maxTotalFileCount', () => {
-      it('count < limit', () => limitTest(
-        { file__file: ['value'], file1__file: ['value'] },
-        { maxTotalFileCount: 3 },
-        'resolve'
-      ));
-      
-      it('count = limit', () => limitTest(
-        { file__file: ['value'], file1__file: ['value'] },
-        { maxTotalFileCount: 2 },
-        'resolve'
-      ));
-
-      it('count > limit', () => limitTest(
-        { file__file: ['value'], file1__file: ['value'] },
-        { maxTotalFileCount: 1 },
-        'reject',
-        TotalLimitError
-      ));
-    });
-    
     describe('byte length limits / truncation', () => {
       describe('abortOnFileByteLengthLimit = false', () => {
         it('multiple files', async () => {
@@ -181,51 +158,3 @@ describe('Files', () => {
     });
   });
 });
-
-async function filesTest(payload: Record<`${string}__file`, string[]>, limit: Partial<Limits> = {}) {
-  const { files } = await createParseFormData(payload, { base: limit });
-
-  const fieldFileCounter = {};
-
-  for (const [resultIndex, file] of files.entries()) {
-    const fieldname = file.field;
-    const originalField = `${fieldname}__file`;
-
-    fieldFileCounter[fieldname] ??= 0;
-    const fileIndex = fieldFileCounter[fieldname]++;
-
-    expect(file).toEqual(
-      expect.objectContaining({
-        field: fieldname,
-        filename: `${fieldname}-${fileIndex}.dat`,
-        mimeType: 'application/octet-stream',
-        skipped: false,
-        content: payload[originalField][fileIndex]
-      })
-    );
-  }
-}
-
-async function limitTest<F extends `${string}__file`>(
-  payload: TestFormDataPayload<F>,
-  limit: Partial<Limits>,
-  expectation: 'resolve',
-): Promise<void>;
-async function limitTest<F extends `${string}__file`>(
-  payload: TestFormDataPayload<F>,
-  limit: Partial<Limits>,
-  expectation: 'reject',
-  errorClass: any,
-): Promise<void>;
-async function limitTest<F extends `${string}__file`>(
-  payload: TestFormDataPayload<F>,
-  limit: Partial<Limits>,
-  expectation: 'resolve' | 'reject',
-  errorClass?: any,
-): Promise<void> {
-  if (expectation === 'resolve') {
-    await filesTest(payload, limit);
-  } else {
-    await expect(createParseFormData(payload, { base: limit })).rejects.toThrow(errorClass);
-  }
-}

@@ -1,6 +1,7 @@
 import FormData from 'form-data';
 import { Readable } from 'stream';
 import { IncomingMessage } from 'http';
+import { expect } from 'vitest';
 
 import { parseFormData } from '../src';
 import { Fields, FileFieldLimits, Limits, PechkinConfig, PechkinFile } from '../src/types';
@@ -8,7 +9,7 @@ import { FileByteLengthInfo } from '../src/length';
 
 export type TestFile = Omit<PechkinFile, 'byteLength' | 'stream'> & { content: string | null; byteLength: FileByteLengthInfo; };
 export type TestFormDataFields<S extends string = string> = `${S}__file` | `${S}__field`;
-export type TestFormDataPayload<F extends TestFormDataFields> = Record<F, string[]>;
+export type TestFormDataPayload<F extends TestFormDataFields = TestFormDataFields> = Record<F, string[]>;
 export type TestFormDataParseResult = { fields: Fields, files: TestFile[] };
 
 // TODO: Turn to async generator
@@ -40,16 +41,18 @@ export async function createParseFormData<F extends TestFormDataFields>(
 
   const form = new FormData();
 
-  for (const [field, files] of Object.entries(payload) as [string, string[]][]) {
+  for (const [field, values] of Object.entries(payload) as [string, string[]][]) {
     const [fieldname, type] = field.split('__') as ['file' | 'field', string];
 
-    for (const [i, file] of files.entries()) {
+    if (!['field', 'file'].includes(type)) {
+      throw new Error(`Invalid field type: ${type}`);
+    }
+
+    for (const [i, value] of values.entries()) {
       if (type === 'file') {
-        form.append(fieldname, Readable.from(file), { filename: `${fieldname}-${i}.dat` });
-      } else if (type === 'field') {
-        form.append(fieldname, file);
+        form.append(fieldname, Readable.from(value), { filename: `${fieldname}-${i}.dat` });
       } else {
-        throw new Error(`Incorrect field type in payload: ${field}`);
+        form.append(fieldname, value);
       }
     }
   }
@@ -104,4 +107,79 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
   }
 
   return Buffer.concat(chunks);
+}
+
+export async function limitTest(
+  payload: TestFormDataPayload,
+  limits: Partial<Limits>,
+  expectation: 'resolve',
+): Promise<void>;
+export async function limitTest(
+  payload: TestFormDataPayload,
+  limits: Partial<Limits>,
+  expectation: 'reject',
+  error: Error,
+): Promise<void>;
+export async function limitTest(
+  payload: TestFormDataPayload,
+  limits: Partial<Limits>,
+  expectation: 'resolve' | 'reject',
+  error?: any,
+): Promise<void> {
+  if (expectation === 'resolve') {
+    // Reduce the payload to two arrays, one for fields and one for files
+    // Each array element should be an object, containing:
+    // - the field name (without the part after __ (including __))
+    // - the count of values for that field
+
+    const [payloadFields, payloadFiles] = Object.entries(payload).reduce((acc, [field, values]) => {
+      const [fieldname, type] = field.split('__') as ['file' | 'field', string];
+
+      if (type === 'field') {
+        acc[0].push({ fieldname, count: values.length });
+      } else if (type === 'file') {
+        acc[1].push({ fieldname, count: values.length });
+      } else {
+        throw new Error(`Incorrect field type in payload: ${field}`);
+      }
+
+      return acc;
+    }, [[], []] as [Array<{ fieldname: string, count: number }>, Array<{ fieldname: string, count: number }>]);
+
+    const { fields, files } = await createParseFormData(payload, { base: limits });
+
+    expect(Object.keys(fields)).toEqual(payloadFields.map(({ fieldname }) => fieldname));
+
+    expect(files).toEqual(
+      payloadFiles
+        .map(({ fieldname, count }) => Array(count).fill(expect.objectContaining({ field: fieldname })))
+        .flat()
+    );
+  } else {
+    await expect(createParseFormData(payload, { base: limits })).rejects.toMatchObject(error);
+  }
+}
+
+export async function filesTest(payload: Record<`${string}__file`, string[]>, limit: Partial<Limits> = {}) {
+  const { files } = await createParseFormData(payload, { base: limit });
+
+  const fieldFileCounter = {};
+
+  for (const [resultIndex, file] of files.entries()) {
+    const fieldname = file.field;
+    const originalField = `${fieldname}__file`;
+
+    fieldFileCounter[fieldname] ??= 0;
+    const fileIndex = fieldFileCounter[fieldname]++;
+
+    expect(file).toEqual(
+      expect.objectContaining({
+        field: fieldname,
+        filename: `${fieldname}-${fileIndex}.dat`,
+        mimeType: 'application/octet-stream',
+        skipped: false,
+        content: payload[originalField][fileIndex]
+      })
+    );
+  }
 }

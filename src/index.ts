@@ -44,9 +44,29 @@ export async function parseFormData(
 }
 
 function FieldsPromise(parser: ParserDependency): Promise<Fields> {
+  // Note: we cleanup only `parts`, `error` and `finish` listeners,
+  // as they also appear in the `files` iterator.
+  let partsLimitHandler: () => void;
+  let errorHandler: (error: Error) => void;
+  let finishHandler: () => void;
+
+  const cleanup = () => {
+    // TODO: Test listener cleanup
+    parser.removeListener('partsLimit', partsLimitHandler);
+    parser.removeListener('error', errorHandler);
+    parser.removeListener('finish', finishHandler);
+  };
+  
   return new Promise<Fields>((resolve, reject) => {
     const fields: Fields = {};
 
+    partsLimitHandler = () => reject(new TotalLimitError('maxTotalPartCount'));
+    errorHandler = (error: Error) => reject(error);
+    finishHandler = () => resolve(fields);
+
+    // cleanup()s are called before every Promise resolution/rejection
+    // Why not in finally() after the Promise? It fires too late – after the event
+    // handlers in `file` iterator have already fired.
     parser
       // TODO: Add a limit on maxFieldKeyByteLength
       // TODO: Test maxFieldKeyByteLength
@@ -54,26 +74,16 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
       // TODO: Test 'error' and 'finish' events
       .on('field', (name: string, value: string, info: busboy.FieldInfo) => {
         // Bug in Busboy (https://github.com/mscdex/busboy/issues/6)
-        if (info.nameTruncated) reject(new FieldLimitError("maxFieldKeyByteLength", name));
-        if (info.valueTruncated) reject(new FieldLimitError("maxFieldValueByteLength", name));
+        if (info.nameTruncated) (cleanup(), reject(new FieldLimitError("maxFieldKeyByteLength", name)));
+        if (info.valueTruncated) (cleanup(), reject(new FieldLimitError("maxFieldValueByteLength", name)));
 
         fields[name] = value;
       })
-      .once('file', () => {
-        return resolve(fields);
-      })
-      .once('partsLimit', () => {
-        return reject(new TotalLimitError("maxTotalPartCount"));
-      })
-      .once('fieldsLimit', () => {
-        return reject(new TotalLimitError("maxTotalFieldCount"));
-      })
-      .once('error', (error) => {
-        return reject(error);
-      })
-      .once('finish', () => { 
-        return resolve(fields);
-      });
+      .once('file', () => (cleanup(), resolve(fields)))
+      .once('partsLimit', (cleanup(), partsLimitHandler))
+      .once('fieldsLimit', () => (cleanup(), reject(new TotalLimitError("maxTotalFieldCount"))))
+      .once('error', (cleanup(), errorHandler))
+      .once('finish', (cleanup(), finishHandler));
   });
 }
 
@@ -93,6 +103,18 @@ class FileIterator {
   ) {
     this.iterator = on(this.parser, 'file');
 
+    /**
+     * Without the `thrown` flag, the following scenario:
+     *
+     * 1. `filesLimit` event is emitted, maxTotalFileCount error is thrown
+     * 2. THEN `partsLimit` event is emitted, maxTotalPartCount error is thrown
+     *
+     * will result in maxTotalPartCount error being thrown, instead of maxTotalFileCount.
+     * 
+     * `thrown` flag and checks in every event listener acts as a locking mechanism.
+     */
+    let thrown = false;
+
     // AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
     // from the Node.js source code for on(), the returned object always providers
     // implementations for next(), return(), throw().
@@ -101,12 +123,23 @@ class FileIterator {
     // to the same function.
     this.parser
       .once('partsLimit', () => {
+        if (thrown) return;
+
+        thrown = true;
+        // INVESTIGATE: Why does this.iterator.throw() not act like reject() in Promises?
+        // Why doesn't the first throw() "lock" the iterator?
         return this.iterator.throw!(new TotalLimitError("maxTotalPartCount"));
       })
       .once('filesLimit', () => {
+        if (thrown) return;
+
+        thrown = true;
         return this.iterator.throw!(new TotalLimitError("maxTotalFileCount"))
       })
       .once('error', (error) => {
+        if (thrown) return;
+
+        thrown = true;
         return this.iterator.throw!(error);
       })
       .once('close', () => { 
@@ -204,6 +237,7 @@ class FileIterator {
      */
     // TODO: Test cleanup
     const cleanup = (): Promise<IteratorReturnResult<undefined>> => {
+      // TODO: Cleanup
       this.parser.destroy();
       return asyncIterator.return!() as Promise<IteratorReturnResult<undefined>>;
     };
