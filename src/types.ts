@@ -8,16 +8,22 @@ export type Fields = Record<string, string>;
 
 export type BusboyFile = [field: string, stream: Readable, info: busboy.FileInfo];
 
-export type PechkinFile = busboy.FileInfo & {
-  field: string;
-  byteLength: Promise<FileByteLengthInfo>;
-} & ({
-  skipped: false;
-  stream: Readable;
-} | {
-  skipped: true;
-  stream: null;
-});
+export type PechkinFile =
+  & busboy.FileInfo
+  & {
+    field: string;
+    byteLength: Promise<FileByteLengthInfo>;
+  }
+  & (
+    | {
+        skipped: false;
+        stream: Readable;
+      }
+    | {
+        skipped: true;
+        stream: null;
+      }
+  );
 
 export type PechkinConfig = {
   base: Partial<Limits>;
