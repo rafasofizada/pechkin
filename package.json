@@ -2,11 +2,14 @@
   "name": "pechkin",
   "version": "0.1.0",
   "description": "Async `multipart/form-data` middleware",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
   "scripts": {
-    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
     "test": "vitest"
   },
-  "author": "Rafael Sofi-zada",
+  "author": "Rafael Sofi-zada <rafa.sofizadeh@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "busboy": "^1.6.0"
