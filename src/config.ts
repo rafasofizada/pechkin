@@ -17,18 +17,21 @@ export function pechkinConfigToBusboyLimits(
 ): busboy.Limits {
   return {
     headerPairs:    maxTotalHeaderPairs,
-    // Busboy `parts` limit is EXCLUSIVE, so we add 1 to make it INCLUSIVE
-    // To test: remove "+ 1" and run test/limits.spec.ts
+    /**
+     * Busboy `parts` limit is EXCLUSIVE (for some reason), so add 1 to make it INCLUSIVE
+     * To test: remove "+ 1" and run test/limits.spec.ts
+     */
     parts:          maxTotalPartCount + 1,
-    // TODO: Test if `files` and `fields` are inclusive
     files:          maxTotalFileCount,
     fields:         maxTotalFieldCount,
     fieldNameSize:  maxFieldKeyByteLength,
     fieldSize:      maxFieldValueByteLength,
-    // We add 1kb to the Busboy limit to account for possible errors,
-    // like boundary bytes being counted into the limit.
-    // This only affects the Busboy limit, so as to not interfere with the
-    // Pechkin limit.
+    /**
+     * We add 1kb to the Busboy limit to account for possible errors,
+     * like boundary bytes being counted into the limit.
+     * This only affects the Busboy limit, so as to not interfere with the
+     * Pechkin limit.
+     */
     fileSize:       1024 + Math.max(
                       maxFileByteLength,
                       ...Object.values(fileOverride).map(f => f.maxFileByteLength).filter(x => !Number.isNaN(x))

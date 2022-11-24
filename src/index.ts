@@ -32,20 +32,19 @@ export async function parseFormData(
     limits: pechkinConfigToBusboyLimits(config),
   });
 
-  // TODO: On 'maxTotalPartCount', both FileIterator and FieldsPromise throw an error,
-  // and apparently only one of them is caught.
   const fields = FieldsPromise(parser);
   const files = new FileIterator(parser, config);
   
   request.pipe(parser);
 
-  // TODO: Should fields be awaited, or passed as a promise?
   return { fields: await fields, files };
 }
 
 function FieldsPromise(parser: ParserDependency): Promise<Fields> {
-  // Note: we cleanup only `parts`, `error` and `finish` listeners,
-  // as they also appear in the `files` iterator.
+  /**
+   * Note: we cleanup only `parts`, `error` and `finish` listeners,
+   * as they also appear in the `files` iterator.
+   */
   let partsLimitHandler: () => void;
   let errorHandler: (error: Error) => void;
   let finishHandler: () => void;
@@ -64,9 +63,11 @@ function FieldsPromise(parser: ParserDependency): Promise<Fields> {
     errorHandler = (error: Error) => reject(error);
     finishHandler = () => resolve(fields);
 
-    // cleanup()s are called before every Promise resolution/rejection
-    // Why not in finally() after the Promise? It fires too late – after the event
-    // handlers in `file` iterator have already fired.
+    /**
+     * `cleanup()`s are called before every Promise resolution/rejection
+     * Why not in finally() after the Promise? It fires too late – after the event
+     * handlers in `file` iterator have already fired.
+     */
     parser
       // TODO: Add a limit on maxFieldKeyByteLength
       // TODO: Test maxFieldKeyByteLength
@@ -115,18 +116,18 @@ class FileIterator {
      */
     let thrown = false;
 
-    // AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
-    // from the Node.js source code for on(), the returned object always providers
-    // implementations for next(), return(), throw().
-
-    // TODO: Test that this.iterator.throw() and this.iterator[Symbol.asyncIterator].throw() refer
-    // to the same function.
+    /**
+     * AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
+     * from the Node.js source code for on(), the returned object always providers
+     * implementations for next(), return(), throw().
+     */
+    // TODO: Test that this.iterator.throw() and this.iterator[Symbol.asyncIterator].throw() are the same function.
     this.parser
       .once('partsLimit', () => {
         if (thrown) return;
 
         thrown = true;
-        // INVESTIGATE: Why does this.iterator.throw() not act like reject() in Promises?
+        // TODO: INVESTIGATE: Why does this.iterator.throw() not act like reject() in Promises?
         // Why doesn't the first throw() "lock" the iterator?
         return this.iterator.throw!(new TotalLimitError("maxTotalPartCount"));
       })
@@ -155,8 +156,7 @@ class FileIterator {
       // https://github.com/nodejs/node/blob/main/lib/events.js#L1017
       const iterElement = await asyncIterator.next();
     
-      // `=== true` to narrow down types
-      // TODO: Research/report issue to TypeScript?
+      // `=== true` to narrow `boolean | undefined` to `boolean`
       if (iterElement.done === true) {
         return { done: true, value: undefined };
       }
