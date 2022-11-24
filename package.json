@@ -2,9 +2,9 @@
   "name": "pechkin",
   "version": "0.1.0",
   "description": "Async `multipart/form-data` middleware",
-  "main": "./dist/cjs/index.js",
-  "module": "./dist/esm/index.js",
-  "files": ["./src", "./dist"],
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "files": ["dist/**/*"],
   "scripts": {
     "prepublishOnly": "npm run build",
     "build": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
