@@ -27,7 +27,7 @@ Some specific differences and improvements:
 
 ## Requirements
 
-- Node.js vX or newer
+- Node.js v13.6.0 or newer ([`events.on()` dependency](https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V13.md#13.6.0))
 
 ## Installation
 
