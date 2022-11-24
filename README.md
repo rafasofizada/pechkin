@@ -27,7 +27,7 @@ Some specific differences and improvements:
 
 ## Requirements
 
-- Node.js v13.6.0 or newer ([`events.on()` dependency](https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V13.md#13.6.0))
+- Node.js v13.6.0+ ([`events.on()` dependency](https://github.com/nodejs/node/blob/main/doc/changelogs/CHANGELOG_V13.md#13.6.0))
 
 ## Installation
 
@@ -89,5 +89,5 @@ TODO:
 - Filters ?
 - Function to abort request
 - Express middleware
-- Determine Node.js version requirement
-- Packaging as library, module systems
+- Test Node.js version compatibility
+- Test NPM library build

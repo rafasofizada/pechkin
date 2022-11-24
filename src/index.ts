@@ -1,4 +1,4 @@
-import busboy from 'busboy';
+import * as busboy from 'busboy';
 import { on } from 'events';
 import { IncomingMessage } from 'http';
 
@@ -24,7 +24,7 @@ export async function parseFormData(
     fileOverride: pechkinConfig?.fileOverride,
   } as RequiredPechkinConfig;
 
-  const parser = busboy({
+  const parser = busboy.default({
     headers: request.headers,
     // Overwrite headers...
     ...(busboyConfig ?? {}),
@@ -238,7 +238,6 @@ class FileIterator {
     // TODO: Test cleanup
     const cleanup = (): Promise<IteratorReturnResult<undefined>> => {
       // TODO: Cleanup
-      this.parser.destroy();
       return asyncIterator.return!() as Promise<IteratorReturnResult<undefined>>;
     };
 

@@ -4,6 +4,7 @@
   "description": "Async `multipart/form-data` middleware",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
+  "files": ["./src", "./dist"],
   "scripts": {
     "prepublishOnly": "npm run build",
     "build": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
