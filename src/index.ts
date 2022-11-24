@@ -21,7 +21,7 @@ export async function parseFormData(
       ...defaultPechkinConfig.base,
       ...(pechkinConfig?.base ?? {}),
     },
-    fileOverride: pechkinConfig.fileOverride,
+    fileOverride: pechkinConfig?.fileOverride,
   } as RequiredPechkinConfig;
 
   const parser = busboy({
@@ -171,12 +171,12 @@ class FileIterator {
         });
       }
 
+      const fileField = this.fileFields.get(field)!;
+
       // TODO: Test maxTotalFileFieldCount
       if ([...this.fileFields.keys()].length > this.config.base.maxTotalFileFieldCount) {
         throw new TotalLimitError("maxTotalFileFieldCount", this.config.base.maxTotalFileFieldCount);
       }
-
-      const fileField = this.fileFields.get(field);
 
       if (fileField.count + 1 > fileField.limits.maxFileCountPerField) {
         // Abort...

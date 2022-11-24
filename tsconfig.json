@@ -6,6 +6,8 @@
     "module": "ES2020",
     "declaration": true,
     "esModuleInterop": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
     "sourceMap": true
   },
   "include": ["src/**/*"]

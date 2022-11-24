@@ -17,12 +17,11 @@ class InternalError extends Error {
       .join(" ");
 
     let message = `Exceeded ${formattedLimitType} limit ("${limitType}").`;
-    const busboyLimitType = limitToLimit[limitType];
 
     super(message); // sets "this.stack"
 
-    if (busboyLimitType) {
-      this.busboyLimitType = busboyLimitType;
+    if (limitType in pechkinLimitToBusboyLimit) {
+      this.busboyLimitType = pechkinLimitToBusboyLimit[limitType as keyof typeof pechkinLimitToBusboyLimit];
       message += `\nCorresponding Busboy configuration option: Busboy.Limits["${this.busboyLimitType}"].`
     }
 
@@ -59,7 +58,7 @@ type TotalLimitType = "maxTotalPartCount" | "maxTotalFileCount" | "maxTotalField
 type FieldLimitType = Exclude<LimitType, TotalLimitType>;
 type BusboyLimitWithLimitAnalogue = "parts" | "files" | "fields" | "fieldNameSize" | "fieldSize";
 
-const limitToLimit = {
+const pechkinLimitToBusboyLimit = {
   maxTotalPartCount: "parts",
   maxTotalFileCount: "files",
   maxTotalFieldCount: "fields",
