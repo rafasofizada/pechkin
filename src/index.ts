@@ -4,7 +4,7 @@ import { IncomingMessage } from 'http';
 
 import { FieldLimitError, TotalLimitError } from './error';
 import { defaultPechkinConfig, pechkinConfigToBusboyLimits } from './config';
-import { BusboyFile, Fields, ParserDependency, FileFieldLimits, PechkinFile, RequiredPechkinConfig, PechkinConfig, Limits } from './types';
+import { BusboyFile, Fields, ParserDependency, FileFieldLimits, PechkinFile, RequiredPechkinConfig, PechkinConfig } from './types';
 import { ByteLengthTruncateStream } from './length';
 
 export async function parseFormData(

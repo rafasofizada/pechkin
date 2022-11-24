@@ -297,15 +297,16 @@ describe('Limits', () => {
     // });
   
     describe('precedence', () => {
-      describe('maxTotalPartCount vs maxTotalFieldCount', () => {
-        it('maxTotalPartCount (0) preceeds maxTotalFieldCount (1) when smaller', () => limitTest(
+      // Precedence actually depends on the timing of `await fields`.
+      describe('maxTotalFieldCount preceeds maxTotalPartCount', () => {
+        it('field limit (1) larger than part limit (0)', () => limitTest(
           { field__field: ['value'] },
           { maxTotalPartCount: 0, maxTotalFieldCount: 1 },
           'reject',
           new TotalLimitError('maxTotalPartCount')
         ));
   
-        it('maxTotalFieldCount preceeds maxTotalPartCount when equal (1)', () => limitTest(
+        it('field limit equal to part limit (1)', () => limitTest(
           {
             field__field: ['value'],
             field1__field: ['value']
@@ -315,7 +316,7 @@ describe('Limits', () => {
           new TotalLimitError('maxTotalFieldCount')
         ));
     
-        it('maxTotalFieldCount preceeds maxTotalPartCount when equal (1) [repeated fields]', () => limitTest(
+        it('field limit equal to part limit (1) [repeated fields]', () => limitTest(
           { field__field: ['value', 'value'] },
           { maxTotalPartCount: 1, maxTotalFieldCount: 1 },
           'reject',
@@ -323,15 +324,15 @@ describe('Limits', () => {
         ));
       });
   
-      describe('maxTotalPartCount vs maxTotalFileCount', () => {
-        it('maxTotalPartCount (0) preceeds maxTotalFileCount (1) when smaller', () => limitTest(
+      describe('maxTotalFileCount preceeds maxTotalPartCount', () => {
+        it('file limit (1) larger than part limit (0)', () => limitTest(
           { file__file: ['value'] },
           { maxTotalPartCount: 0, maxTotalFileCount: 1 },
           'reject',
           new TotalLimitError('maxTotalPartCount')
         ));
   
-        it('maxTotalFileCount preceeds maxTotalPartCount when equal (1)', () => limitTest(
+        it('file limit equal to part limit (1)', () => limitTest(
           {
             file__file: ['value'],
             file1__file: ['value']
@@ -341,7 +342,7 @@ describe('Limits', () => {
           new TotalLimitError('maxTotalFileCount')
         ));
   
-        it('maxTotalFileCount preceeds maxTotalPartCount when equal (1) [repeated files]', () => limitTest(
+        it('file limit equal to part limit (1) [repeated files]', () => limitTest(
           { file__file: ['value', 'value'] },
           { maxTotalPartCount: 1, maxTotalFileCount: 1 },
           'reject',
