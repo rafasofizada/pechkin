@@ -4,10 +4,11 @@
   "description": "Async `multipart/form-data` middleware",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
+  "types": "dist/cjs/index.d.ts",
   "files": ["dist/**/*"],
   "scripts": {
     "prepublishOnly": "npm run build",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
+    "build": "tsc -p tsconfig-esm.json && tsc -p tsconfig-cjs.json",
     "test": "vitest"
   },
   "author": "Rafael Sofi-zada <rafa.sofizadeh@gmail.com>",

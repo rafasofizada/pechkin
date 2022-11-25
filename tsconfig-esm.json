@@ -2,8 +2,8 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
     "outDir": "./dist/esm",
-    "target": "ES2015",
-    "module": "ES2020",
+    "target": "ES2019",
+    "module": "ESNext",
     "declaration": true,
     "esModuleInterop": true,
     "noImplicitAny": true,
