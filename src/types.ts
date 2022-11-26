@@ -1,6 +1,6 @@
 import * as busboy from "busboy";
 import { EventEmitter, Readable } from "stream";
-import { FileByteLengthInfo } from "./length";
+import { FileByteLengthInfo } from "./ByteLengthTruncateStream";
 
 export type ParserDependency = EventEmitter;
 
@@ -35,19 +35,18 @@ export type RequiredPechkinConfig = {
   fileOverride?: Record<string, FileFieldLimits>;
 };
 
-export type Limits = {                                    // PECHKIN DEFAULT      BUSBOY ANALOG       BUSBOY DEFAULT
-  maxTotalHeaderPairs:             number;                //            2000      "headerPairs"                 2000
-  maxFieldKeyByteLength:           number;                //       100 bytes      "fieldNameSize"          100 bytes
-  maxFieldValueByteLength:         number;                //            1 MB      "fieldSize"                   1 MB
-  maxFileByteLength:               number;                //           50 MB      "fileSize"                Infinity
-  maxTotalFieldCount:              number;                //             100      "fields"                  Infinity
-  maxTotalFileCount:               number;                //              10      "files"                   Infinity
-  maxTotalPartCount:               number;                //  100 + 10 = 110      "parts"                   Infinity 
-  maxTotalFileFieldCount:          number;                //               1
-  maxFileCountPerField:            number;                //               1
-  abortOnFileCountPerFieldLimit:   boolean;               //            true      
-  abortOnFileByteLengthLimit:      boolean;               //            true      stream.truncated,
-                                                          //                      "limit"                  
+export type Limits = {                     
+  maxTotalHeaderPairs: number;
+  maxFieldKeyByteLength: number;
+  maxFieldValueByteLength: number;
+  maxFileByteLength: number;
+  maxTotalFieldCount: number;
+  maxTotalFileCount: number;
+  maxTotalPartCount: number;
+  maxTotalFileFieldCount: number;
+  maxFileCountPerField: number;
+  abortOnFileCountPerFieldLimit: boolean;
+  abortOnFileByteLengthLimit: boolean;          
 };
 
 export type FileFieldLimits = Pick<Limits, "maxFileByteLength" | "maxFileCountPerField" | "abortOnFileCountPerFieldLimit" | "abortOnFileByteLengthLimit">;

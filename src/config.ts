@@ -1,6 +1,23 @@
 import * as busboy from 'busboy';
 import { RequiredPechkinConfig } from './types';
 
+export const defaultPechkinConfig: RequiredPechkinConfig = {
+  base: {                                        // PECHKIN DEFAULT      BUSBOY ANALOG       BUSBOY DEFAULT
+    maxTotalHeaderPairs: 2000,                   //            2000      "headerPairs"                 2000
+    maxTotalPartCount: 110,                      //       100 bytes      "fieldNameSize"          100 bytes
+    maxFieldKeyByteLength: 100,                  //            1 MB      "fieldSize"                   1 MB
+    maxFieldValueByteLength: 1024 * 1024,        //           50 MB      "fileSize"                Infinity
+    maxTotalFieldCount: 100,                     //             100      "fields"                  Infinity
+    maxTotalFileFieldCount: 1,                   //              10      "files"                   Infinity
+    maxTotalFileCount: 10,                       //  100 + 10 = 110      "parts"                   Infinity 
+    maxFileByteLength: 50 * 1024 * 1024,         //               1
+    maxFileCountPerField: 1,                     //               1
+    abortOnFileCountPerFieldLimit: true,         //            true      
+    abortOnFileByteLengthLimit: true,            //            true      stream.truncated,
+                                                 //                      "limit"                  
+  }
+};
+
 export function pechkinConfigToBusboyLimits(
   {
     base: {
@@ -38,19 +55,3 @@ export function pechkinConfigToBusboyLimits(
                     ),
   };
 }
-
-export const defaultPechkinConfig: RequiredPechkinConfig = {
-  base: {
-    maxTotalHeaderPairs: 2000,
-    maxTotalPartCount: 110,
-    maxFieldKeyByteLength: 100,
-    maxFieldValueByteLength: 1024 * 1024,
-    maxTotalFieldCount: 100,
-    maxTotalFileFieldCount: 1,
-    maxTotalFileCount: 10,
-    maxFileByteLength: 50 * 1024 * 1024,
-    maxFileCountPerField: 1,
-    abortOnFileCountPerFieldLimit: true,
-    abortOnFileByteLengthLimit: true,
-  }
-};
