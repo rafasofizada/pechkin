@@ -1,11 +1,14 @@
-import * as busboy from 'busboy';
+import busboy from 'busboy';
 import { on } from 'events';
 import { IncomingMessage } from 'http';
 
 import { FieldLimitError, TotalLimitError } from './error';
 import { defaultPechkinConfig, pechkinConfigToBusboyLimits } from './config';
 import { BusboyFile, Fields, ParserDependency, FileFieldLimits, PechkinFile, RequiredPechkinConfig, PechkinConfig } from './types';
-import { ByteLengthTruncateStream } from './length';
+import { ByteLengthTruncateStream } from './ByteLengthTruncateStream';
+
+export * from './error';
+export * from './types';
 
 export async function parseFormData(
   request: IncomingMessage,
@@ -24,7 +27,7 @@ export async function parseFormData(
     fileOverride: pechkinConfig?.fileOverride,
   } as RequiredPechkinConfig;
 
-  const parser = busboy.default({
+  const parser = busboy({
     headers: request.headers,
     // Overwrite headers...
     ...(busboyConfig ?? {}),
@@ -35,6 +38,7 @@ export async function parseFormData(
   const fields = FieldsPromise(parser);
   const files = new FileIterator(parser, config);
   
+  // TODO: Test if throws if request is not multipart/form-data
   request.pipe(parser);
 
   return { fields: await fields, files };
@@ -118,8 +122,7 @@ class FileIterator {
 
     /**
      * AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
-     * from the Node.js source code for on(), the returned object always providers
-     * implementations for next(), return(), throw().
+     * from the Node.js source code for on(), the returned object always contains them.
      */
     // TODO: Test that this.iterator.throw() and this.iterator[Symbol.asyncIterator].throw() are the same function.
     this.parser

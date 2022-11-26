@@ -3,7 +3,6 @@ import { RequiredPechkinConfig } from './types';
 class InternalError extends Error {
   public readonly limitType: LimitType;
   public readonly busboyLimitType?: BusboyLimitWithLimitAnalogue;
-  public readonly stack: string;
   public message: string;
 
   constructor(

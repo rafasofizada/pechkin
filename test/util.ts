@@ -5,7 +5,7 @@ import { expect } from 'vitest';
 
 import { parseFormData } from '../src';
 import { Fields, FileFieldLimits, Limits, PechkinConfig, PechkinFile } from '../src/types';
-import { FileByteLengthInfo } from '../src/length';
+import { FileByteLengthInfo } from '../src/ByteLengthTruncateStream';
 
 export type TestFile = Omit<PechkinFile, 'byteLength' | 'stream'> & { content: string | null; byteLength: FileByteLengthInfo; };
 export type TestFormDataFields<S extends string = string> = `${S}__file` | `${S}__field`;
