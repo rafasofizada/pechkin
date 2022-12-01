@@ -6,22 +6,11 @@ import { FileByteLengthInfo } from "./ByteLengthTruncateStream";
 export namespace Pechkin {
   export type Fields = Record<string, string>;
 
-  export type File =
-    & busboy.FileInfo
-    & {
-      field: string;
-      byteLength: Promise<FileByteLengthInfo>;
-    }
-    & (
-      | {
-          skipped: false;
-          stream: Readable;
-        }
-      | {
-          skipped: true;
-          stream: null;
-        }
-    );
+  export type File = busboy.FileInfo & {
+    field: string;
+    byteLength: Promise<FileByteLengthInfo>;
+    stream: Readable;
+  };
 
   export type BusboyConfig = Omit<busboy.BusboyConfig, 'headers' | 'config'>;
 
@@ -35,9 +24,8 @@ export namespace Pechkin {
     maxTotalPartCount: number;
     maxTotalFileFieldCount: number;
     maxFileCountPerField: number;
-    abortOnFileCountPerFieldLimit: boolean;
     abortOnFileByteLengthLimit: boolean;          
   };
 
-  export type FileFieldConfig = Pick<Config, "maxFileByteLength" | "maxFileCountPerField" | "abortOnFileCountPerFieldLimit" | "abortOnFileByteLengthLimit">;
+  export type FileFieldConfig = Pick<Config, "maxFileByteLength" | "maxFileCountPerField" | "abortOnFileByteLengthLimit">;
 };

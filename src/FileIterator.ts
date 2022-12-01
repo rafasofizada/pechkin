@@ -101,25 +101,8 @@ export class FileIterator {
       }
 
       if (fileField.count + 1 > fileField.config.maxFileCountPerField) {
-        // Abort...
-        if (fileField.config.abortOnFileCountPerFieldLimit) {
-          // TODO: Abort the entire request in return()/cleanup()
-          throw new FieldLimitError("maxFileCountPerField", field, fileField.config.maxFileCountPerField);
-        }
-
-        // ...or skip
-        stream.resume();
-
-        return {
-          done: false,
-          value: {
-            field,
-            stream: null,
-            skipped: true,
-            byteLength: Promise.resolve({ truncated: false, readBytes: 0 }),
-            ...info,
-          },
-        };
+        // TODO: Abort the entire request in return()/cleanup()
+        throw new FieldLimitError("maxFileCountPerField", field, fileField.config.maxFileCountPerField);
       }
       
       fileField.count += 1;
@@ -134,7 +117,6 @@ export class FileIterator {
         value: {
           field,
           stream: truncatedStream,
-          skipped: false,
           byteLength: truncatedStream.byteLengthEvent
             .then((payload) => {
               stream.removeListener('limit', busboyLimitListener);

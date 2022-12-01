@@ -13,7 +13,6 @@ export const defaultConfig: Pechkin.Config = {
     maxTotalFileCount: 10,                       //  100 + 10 = 110      "files"                   Infinity 
     maxFileByteLength: 50 * 1024 * 1024,         //               1      "fileSize"                Infinity
     maxFileCountPerField: 1,                     //               1
-    abortOnFileCountPerFieldLimit: true,         //            true      
     abortOnFileByteLengthLimit: true,            //            true      stream.truncated,
                                                  //                      "limit" event                
 };
