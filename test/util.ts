@@ -18,6 +18,12 @@ export async function createParseFormData<F extends TestFormDataFields>(
   config?: Pechkin.Config,
   fileFieldConfigOverride: Internal.FileFieldConfigOverride = {},
 ): Promise<TestFormDataParseResult> {
+  const testDefaultConfig = {
+    maxTotalFileFieldCount: Infinity,
+    maxFileCountPerField: Infinity,
+    ...config,
+  };
+
   const form = new FormData();
 
   for (const [field, values] of Object.entries(payload) as [string, string[]][]) {
@@ -37,7 +43,7 @@ export async function createParseFormData<F extends TestFormDataFields>(
   }
 
   const request: IncomingMessage = Object.create(form, { headers: { value: form.getHeaders() } });
-  const { fields, files } = await parseFormData(request, config, payloadFormat(fileFieldConfigOverride));
+  const { fields, files } = await parseFormData(request, testDefaultConfig, payloadFormat(fileFieldConfigOverride));
   
   const results = [] as TestFile[];
 
