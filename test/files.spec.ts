@@ -35,10 +35,8 @@ describe('Files', () => {
             truncateSingle__file: ['truncated 2 0'],
             noTruncation__file: ['not trunc', 'no trunca'],
           }, {
-            base: {
-              abortOnFileByteLengthLimit: false,
-              maxFileByteLength: 9,
-            },
+            abortOnFileByteLengthLimit: false,
+            maxFileByteLength: 9,
           });
   
           // TODO: Automate test?
@@ -87,17 +85,14 @@ describe('Files', () => {
             truncate__file: ['should be truncated'],
             truncateLonger__file: ['should be truncated'],
           }, {
-            base: {
-              abortOnFileByteLengthLimit: false,
-              maxFileByteLength: 9,
+            abortOnFileByteLengthLimit: false,
+            maxFileByteLength: 9,
+          }, {
+            dontTruncate__file: {
+              maxFileByteLength: Infinity,
             },
-            fileOverride: {
-              dontTruncate__file: {
-                maxFileByteLength: Infinity,
-              },
-              truncateLonger__file: {
-                maxFileByteLength: 15,
-              }
+            truncateLonger__file: {
+              maxFileByteLength: 15,
             }
           });
     

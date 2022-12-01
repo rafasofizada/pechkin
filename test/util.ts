@@ -3,42 +3,21 @@ import { Readable } from 'stream';
 import { IncomingMessage } from 'http';
 import { expect } from 'vitest';
 
-import { parseFormData } from '../src';
-import { Fields, FileFieldConfig, Config, PechkinConfig, PechkinFile } from '../src/types';
+import { parseFormData, Pechkin } from '../src';
+import { Internal } from '../src/types';
 import { FileByteLengthInfo } from '../src/ByteLengthTruncateStream';
 
-export type TestFile = Omit<PechkinFile, 'byteLength' | 'stream'> & { content: string | null; byteLength: FileByteLengthInfo; };
+export type TestFile = Omit<Internal.File, 'byteLength' | 'stream'> & { content: string | null; byteLength: FileByteLengthInfo; };
 export type TestFormDataFields<S extends string = string> = `${S}__file` | `${S}__field`;
 export type TestFormDataPayload<F extends TestFormDataFields = TestFormDataFields> = Record<F, string[]>;
-export type TestFormDataParseResult = { fields: Fields, files: TestFile[] };
+export type TestFormDataParseResult = { fields: Internal.Fields, files: TestFile[] };
 
-// TODO: Turn to async generator
+// TODO: Return processed files even after abort
 export async function createParseFormData<F extends TestFormDataFields>(
   payload: TestFormDataPayload<F>,
-  {
-    base,
-    fileOverride = {},
-  }: {
-    base: Partial<Config>;
-    fileOverride?: Partial<Record<F, Partial<FileFieldConfig>>>;
-  } = {
-    base: {
-      maxTotalFileFieldCount: Infinity,
-      maxFileCountPerField: Infinity
-    },
-    fileOverride: {},
-  }
+  config?: Pechkin.Config,
+  fileFieldConfigOverride: Internal.FileFieldConfigOverride = {},
 ): Promise<TestFormDataParseResult> {
-  // Defaults
-  const config = {
-    base: {
-      maxTotalFileFieldCount: Infinity,
-      maxFileCountPerField: Infinity,
-      ...base,
-    },
-    fileOverride: payloadFormat(fileOverride),
-  } as PechkinConfig;
-
   const form = new FormData();
 
   for (const [field, values] of Object.entries(payload) as [string, string[]][]) {
@@ -58,7 +37,7 @@ export async function createParseFormData<F extends TestFormDataFields>(
   }
 
   const request: IncomingMessage = Object.create(form, { headers: { value: form.getHeaders() } });
-  const { fields, files } = await parseFormData(request, config);
+  const { fields, files } = await parseFormData(request, config, payloadFormat(fileFieldConfigOverride));
   
   const results = [] as TestFile[];
 
@@ -111,18 +90,18 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
 
 export async function limitTest(
   payload: TestFormDataPayload,
-  config: Partial<Config>,
+  config: Pechkin.Config,
   expectation: 'resolve',
 ): Promise<void>;
 export async function limitTest(
   payload: TestFormDataPayload,
-  config: Partial<Config>,
+  config: Pechkin.Config,
   expectation: 'reject',
   error: Error,
 ): Promise<void>;
 export async function limitTest(
   payload: TestFormDataPayload,
-  config: Partial<Config>,
+  config: Pechkin.Config,
   expectation: 'resolve' | 'reject',
   error?: any,
 ): Promise<void> {
@@ -146,7 +125,7 @@ export async function limitTest(
       return acc;
     }, [[], []] as [Array<{ fieldname: string, count: number }>, Array<{ fieldname: string, count: number }>]);
 
-    const { fields, files } = await createParseFormData(payload, { base: config });
+    const { fields, files } = await createParseFormData(payload, config);
 
     expect(Object.keys(fields)).toEqual(payloadFields.map(({ fieldname }) => fieldname));
 
@@ -156,12 +135,12 @@ export async function limitTest(
         .flat()
     );
   } else {
-    await expect(createParseFormData(payload, { base: config })).rejects.toMatchObject(error);
+    await expect(createParseFormData(payload, config)).rejects.toMatchObject(error);
   }
 }
 
-export async function filesTest(payload: Record<`${string}__file`, string[]>, limit: Partial<Config> = {}) {
-  const { files } = await createParseFormData(payload, { base: limit });
+export async function filesTest(payload: Record<`${string}__file`, string[]>, config?: Pechkin.Config) {
+  const { files } = await createParseFormData(payload, config);
 
   const fieldFileCounter = {};
 
@@ -177,7 +156,6 @@ export async function filesTest(payload: Record<`${string}__file`, string[]>, li
         field: fieldname,
         filename: `${fieldname}-${fileIndex}.dat`,
         mimeType: 'application/octet-stream',
-        skipped: false,
         content: payload[originalField][fileIndex]
       })
     );
