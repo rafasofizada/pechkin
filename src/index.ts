@@ -9,7 +9,7 @@ import { defaultConfig, FieldConfig, pechkinConfigToBusboyLimits } from './confi
 export * from './error';
 
 export namespace Pechkin {
-  export type Config = Internal.Config;
+  export type Config = Partial<Internal.Config>;
   export type BusboyConfig = Internal.BusboyConfig;
   export type FileFieldConfigOverride = Internal.FileFieldConfigOverride;
   export type Fields = Internal.Fields;
