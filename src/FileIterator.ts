@@ -18,18 +18,48 @@ export function FileIterator(
   const busboyIterator: AsyncIterableIterator<BusboyFileEventPayload> = on(parser, "file");
   const fileCounter = FileCounter(config, fileFieldConfig);
 
-  /**
-   * AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
-   * from the Node.js source code for on(), the returned object always contains them.
-   */
-  // TODO: Test that this.iterator.throw() and this.iterator[Symbol.asyncIterator].throw() are the same function.
-  parser
-    .once('partsLimit', () => { throw new TotalLimitError("maxTotalPartCount"); })
-    .once('filesLimit', () => { throw new TotalLimitError("maxTotalFileCount"); })
-    .once('error', (error) => { throw error; })
-    .once('close', () => busboyIterator.return!());
-
   const asyncIterator = BusboyIteratorWrapper(busboyIterator, fileFieldConfig, fileCounter);
+
+  /**
+     * Without the `thrown` flag, the following scenario:
+     *
+     * 1. `filesLimit` event is emitted, maxTotalFileCount error is thrown
+     * 2. THEN `partsLimit` event is emitted, maxTotalPartCount error is thrown
+     *
+     * will result in maxTotalPartCount error being thrown, instead of maxTotalFileCount.
+     * 
+     * `thrown` flag and checks in every event listener acts as a locking mechanism.
+     */
+   let thrown = false;
+
+   /**
+    * AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
+    * from the Node.js source code for on(), the returned object always contains them.
+    */
+   parser
+     .once('partsLimit', () => {
+       if (thrown) return;
+
+       thrown = true;
+       // TODO: INVESTIGATE: Why does iterator.throw() not act like reject() in Promises?
+       // Why doesn't the first throw() "lock" the iterator?
+       return asyncIterator.throw!(new TotalLimitError("maxTotalPartCount"));
+     })
+     .once('filesLimit', () => {
+       if (thrown) return;
+
+       thrown = true;
+       return asyncIterator.throw!(new TotalLimitError("maxTotalFileCount"))
+     })
+     .once('error', (error) => {
+       if (thrown) return;
+
+       thrown = true;
+       return asyncIterator.throw!(error);
+     })
+     .once('close', () => { 
+       return asyncIterator.return!();
+     });
 
   // for-await-of loop calls [Symbol.asyncIterator]
   return Object.create(asyncIterator, { [Symbol.asyncIterator]: { value: () => asyncIterator } });
