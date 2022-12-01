@@ -1,8 +1,8 @@
 import * as busboy from 'busboy';
 
-import { Pechkin } from './types';
+import { Internal } from './types';
 
-export const defaultConfig: Pechkin.Config = {                                  
+export const defaultConfig: Internal.Config = {                                  
                                                  // PECHKIN DEFAULT      BUSBOY ANALOG       BUSBOY DEFAULT
     maxTotalHeaderPairs: 2000,                   //            2000      "headerPairs"                 2000
     maxTotalPartCount: 110,                      //       100 bytes      "parts"                  100 bytes
@@ -24,7 +24,7 @@ export function pechkinConfigToBusboyLimits({
   maxTotalFieldCount,
   maxFieldKeyByteLength,
   maxFieldValueByteLength,
-}: Pechkin.Config): busboy.Limits {
+}: Internal.Config): busboy.Limits {
   return {
     headerPairs:    maxTotalHeaderPairs,
     /**

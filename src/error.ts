@@ -1,4 +1,4 @@
-import { Pechkin } from './types';
+import { Internal } from './types';
 
 class InternalError extends Error {
   public readonly limitType: LimitType;
@@ -52,7 +52,7 @@ export class FieldLimitError extends InternalError {
   }
 }
 
-type LimitType = Exclude<keyof Pechkin.Config, "maxTotalHeaderPairs">;
+type LimitType = Exclude<keyof Internal.Config, "maxTotalHeaderPairs">;
 type TotalLimitType = "maxTotalPartCount" | "maxTotalFileCount" | "maxTotalFieldCount" | "maxTotalFileFieldCount";
 type FieldLimitType = Exclude<LimitType, TotalLimitType>;
 type BusboyLimitWithLimitAnalogue = "parts" | "files" | "fields" | "fieldNameSize" | "fieldSize";

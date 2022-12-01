@@ -1,24 +1,28 @@
 import busboy from 'busboy';
 import { IncomingMessage } from 'http';
 
-import { FieldLimitError, TotalLimitError } from './error';
-import { defaultConfig, pechkinConfigToBusboyLimits } from './config';
-import { Pechkin } from './types';
+import { Internal } from './types';
 import { FileIterator } from './FileIterator';
 
 export * from './error';
-export * from './types';
 
-// TODO: abortOnX setting for every rejection/error
+export namespace Pechkin {
+  export type Config = Internal.Config;
+  export type BusboyConfig = Internal.BusboyConfig;
+  export type FileFieldConfigOverride = Internal.FileFieldConfigOverride;
+  export type Fields = Internal.Fields;
+  export type File = Internal.File;
+  export type Files = Internal.Files;
+}
 
 export async function parseFormData(
   request: IncomingMessage,
   config: Partial<Pechkin.Config> = {},
-  fileFieldConfigOverride: Record<string, Partial<Pechkin.FileFieldConfig>> = {},
+  fileFieldConfigOverride: Pechkin.FileFieldConfigOverride = {},
   busboyConfig: Pechkin.BusboyConfig = {},
 ): Promise<{
   fields: Pechkin.Fields,
-  files: FileIterator,
+  files: Pechkin.Files,
 }> {
   const normalizedConfig: Pechkin.Config = {
     ...defaultConfig,

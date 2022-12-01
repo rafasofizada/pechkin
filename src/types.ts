@@ -3,7 +3,7 @@ import { Readable } from "stream";
 
 import { FileByteLengthInfo } from "./ByteLengthTruncateStream";
 
-export namespace Pechkin {
+export namespace Internal {
   export type Fields = Record<string, string>;
 
   export type File = busboy.FileInfo & {
@@ -11,6 +11,10 @@ export namespace Pechkin {
     byteLength: Promise<FileByteLengthInfo>;
     stream: Readable;
   };
+
+  export type Files = AsyncIterableIterator<File>;
+
+  export type FileIterator = AsyncIterator<File>;
 
   export type BusboyConfig = Omit<busboy.BusboyConfig, 'headers' | 'config'>;
 
@@ -27,5 +31,9 @@ export namespace Pechkin {
     abortOnFileByteLengthLimit: boolean;          
   };
 
-  export type FileFieldConfig = Pick<Config, "maxFileByteLength" | "maxFileCountPerField" | "abortOnFileByteLengthLimit">;
+  export type FileFieldConfig = Record<string, Config>;
+
+  export type FileFieldSpecificConfig = Pick<Config, "maxFileByteLength" | "maxFileCountPerField" | "abortOnFileByteLengthLimit">;
+
+  export type FileFieldConfigOverride = Record<string, Partial<FileFieldSpecificConfig>>;
 };
