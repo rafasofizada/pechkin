@@ -1,52 +1,43 @@
 import * as busboy from "busboy";
-import { EventEmitter, Readable } from "stream";
+import { Readable } from "stream";
+
 import { FileByteLengthInfo } from "./ByteLengthTruncateStream";
 
-export type ParserDependency = EventEmitter;
+export namespace Pechkin {
+  export type Fields = Record<string, string>;
 
-export type Fields = Record<string, string>;
+  export type File =
+    & busboy.FileInfo
+    & {
+      field: string;
+      byteLength: Promise<FileByteLengthInfo>;
+    }
+    & (
+      | {
+          skipped: false;
+          stream: Readable;
+        }
+      | {
+          skipped: true;
+          stream: null;
+        }
+    );
 
-export type BusboyFile = [field: string, stream: Readable, info: busboy.FileInfo];
+  export type BusboyConfig = Omit<busboy.BusboyConfig, 'headers' | 'config'>;
 
-export type PechkinFile =
-  & busboy.FileInfo
-  & {
-    field: string;
-    byteLength: Promise<FileByteLengthInfo>;
-  }
-  & (
-    | {
-        skipped: false;
-        stream: Readable;
-      }
-    | {
-        skipped: true;
-        stream: null;
-      }
-  );
+  export type Config = {                     
+    maxTotalHeaderPairs: number;
+    maxFieldKeyByteLength: number;
+    maxFieldValueByteLength: number;
+    maxFileByteLength: number;
+    maxTotalFieldCount: number;
+    maxTotalFileCount: number;
+    maxTotalPartCount: number;
+    maxTotalFileFieldCount: number;
+    maxFileCountPerField: number;
+    abortOnFileCountPerFieldLimit: boolean;
+    abortOnFileByteLengthLimit: boolean;          
+  };
 
-export type PechkinConfig = {
-  base: Partial<Limits>;
-  fileOverride?: Record<string, Partial<FileFieldLimits>>;
+  export type FileFieldConfig = Pick<Config, "maxFileByteLength" | "maxFileCountPerField" | "abortOnFileCountPerFieldLimit" | "abortOnFileByteLengthLimit">;
 };
-
-export type RequiredPechkinConfig = {
-  base: Limits;
-  fileOverride?: Record<string, FileFieldLimits>;
-};
-
-export type Limits = {                     
-  maxTotalHeaderPairs: number;
-  maxFieldKeyByteLength: number;
-  maxFieldValueByteLength: number;
-  maxFileByteLength: number;
-  maxTotalFieldCount: number;
-  maxTotalFileCount: number;
-  maxTotalPartCount: number;
-  maxTotalFileFieldCount: number;
-  maxFileCountPerField: number;
-  abortOnFileCountPerFieldLimit: boolean;
-  abortOnFileByteLengthLimit: boolean;          
-};
-
-export type FileFieldLimits = Pick<Limits, "maxFileByteLength" | "maxFileCountPerField" | "abortOnFileCountPerFieldLimit" | "abortOnFileByteLengthLimit">;

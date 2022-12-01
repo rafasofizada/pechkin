@@ -4,7 +4,7 @@ import { IncomingMessage } from 'http';
 import { expect } from 'vitest';
 
 import { parseFormData } from '../src';
-import { Fields, FileFieldLimits, Limits, PechkinConfig, PechkinFile } from '../src/types';
+import { Fields, FileFieldConfig, Config, PechkinConfig, PechkinFile } from '../src/types';
 import { FileByteLengthInfo } from '../src/ByteLengthTruncateStream';
 
 export type TestFile = Omit<PechkinFile, 'byteLength' | 'stream'> & { content: string | null; byteLength: FileByteLengthInfo; };
@@ -19,8 +19,8 @@ export async function createParseFormData<F extends TestFormDataFields>(
     base,
     fileOverride = {},
   }: {
-    base: Partial<Limits>;
-    fileOverride?: Partial<Record<F, Partial<FileFieldLimits>>>;
+    base: Partial<Config>;
+    fileOverride?: Partial<Record<F, Partial<FileFieldConfig>>>;
   } = {
     base: {
       maxTotalFileFieldCount: Infinity,
@@ -111,18 +111,18 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
 
 export async function limitTest(
   payload: TestFormDataPayload,
-  limits: Partial<Limits>,
+  config: Partial<Config>,
   expectation: 'resolve',
 ): Promise<void>;
 export async function limitTest(
   payload: TestFormDataPayload,
-  limits: Partial<Limits>,
+  config: Partial<Config>,
   expectation: 'reject',
   error: Error,
 ): Promise<void>;
 export async function limitTest(
   payload: TestFormDataPayload,
-  limits: Partial<Limits>,
+  config: Partial<Config>,
   expectation: 'resolve' | 'reject',
   error?: any,
 ): Promise<void> {
@@ -146,7 +146,7 @@ export async function limitTest(
       return acc;
     }, [[], []] as [Array<{ fieldname: string, count: number }>, Array<{ fieldname: string, count: number }>]);
 
-    const { fields, files } = await createParseFormData(payload, { base: limits });
+    const { fields, files } = await createParseFormData(payload, { base: config });
 
     expect(Object.keys(fields)).toEqual(payloadFields.map(({ fieldname }) => fieldname));
 
@@ -156,11 +156,11 @@ export async function limitTest(
         .flat()
     );
   } else {
-    await expect(createParseFormData(payload, { base: limits })).rejects.toMatchObject(error);
+    await expect(createParseFormData(payload, { base: config })).rejects.toMatchObject(error);
   }
 }
 
-export async function filesTest(payload: Record<`${string}__file`, string[]>, limit: Partial<Limits> = {}) {
+export async function filesTest(payload: Record<`${string}__file`, string[]>, limit: Partial<Config> = {}) {
   const { files } = await createParseFormData(payload, { base: limit });
 
   const fieldFileCounter = {};

@@ -1,37 +1,31 @@
 import * as busboy from 'busboy';
-import { RequiredPechkinConfig } from './types';
 
-export const defaultPechkinConfig: RequiredPechkinConfig = {
-  base: {                                        // PECHKIN DEFAULT      BUSBOY ANALOG       BUSBOY DEFAULT
+import { Pechkin } from './types';
+
+export const defaultConfig: Pechkin.Config = {                                  
+                                                 // PECHKIN DEFAULT      BUSBOY ANALOG       BUSBOY DEFAULT
     maxTotalHeaderPairs: 2000,                   //            2000      "headerPairs"                 2000
-    maxTotalPartCount: 110,                      //       100 bytes      "fieldNameSize"          100 bytes
-    maxFieldKeyByteLength: 100,                  //            1 MB      "fieldSize"                   1 MB
-    maxFieldValueByteLength: 1024 * 1024,        //           50 MB      "fileSize"                Infinity
+    maxTotalPartCount: 110,                      //       100 bytes      "parts"                  100 bytes
+    maxFieldKeyByteLength: 100,                  //            1 MB      "fieldNameSize"               1 MB
+    maxFieldValueByteLength: 1024 * 1024,        //           50 MB      "fieldSize"               Infinity
     maxTotalFieldCount: 100,                     //             100      "fields"                  Infinity
-    maxTotalFileFieldCount: 1,                   //              10      "files"                   Infinity
-    maxTotalFileCount: 10,                       //  100 + 10 = 110      "parts"                   Infinity 
-    maxFileByteLength: 50 * 1024 * 1024,         //               1
+    maxTotalFileFieldCount: 1,                   //              10                                
+    maxTotalFileCount: 10,                       //  100 + 10 = 110      "files"                   Infinity 
+    maxFileByteLength: 50 * 1024 * 1024,         //               1      "fileSize"                Infinity
     maxFileCountPerField: 1,                     //               1
     abortOnFileCountPerFieldLimit: true,         //            true      
     abortOnFileByteLengthLimit: true,            //            true      stream.truncated,
-                                                 //                      "limit"                  
-  }
+                                                 //                      "limit" event                
 };
 
-export function pechkinConfigToBusboyLimits(
-  {
-    base: {
-      maxTotalHeaderPairs,
-      maxTotalPartCount,
-      maxTotalFileCount,
-      maxTotalFieldCount,
-      maxFieldKeyByteLength,
-      maxFieldValueByteLength,
-      maxFileByteLength,
-    },
-    fileOverride = {},
-  }: RequiredPechkinConfig
-): busboy.Limits {
+export function pechkinConfigToBusboyLimits({
+  maxTotalHeaderPairs,
+  maxTotalPartCount,
+  maxTotalFileCount,
+  maxTotalFieldCount,
+  maxFieldKeyByteLength,
+  maxFieldValueByteLength,
+}: Pechkin.Config): busboy.Limits {
   return {
     headerPairs:    maxTotalHeaderPairs,
     /**
@@ -43,15 +37,6 @@ export function pechkinConfigToBusboyLimits(
     fields:         maxTotalFieldCount,
     fieldNameSize:  maxFieldKeyByteLength,
     fieldSize:      maxFieldValueByteLength,
-    /**
-     * We add 1kb to the Busboy limit to account for possible errors,
-     * like boundary bytes being counted into the limit.
-     * This only affects the Busboy limit, so as to not interfere with the
-     * Pechkin limit.
-     */
-    fileSize:       1024 + Math.max(
-                      maxFileByteLength,
-                      ...Object.values(fileOverride).map(f => f.maxFileByteLength).filter(x => !Number.isNaN(x))
-                    ),
+    fileSize:       Infinity,
   };
 }

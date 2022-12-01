@@ -25,8 +25,8 @@ describe('Files', () => {
     }));
   });
 
-  describe('limits', () => {
-    describe('byte length limits / truncation', () => {
+  describe('config', () => {
+    describe('byte length config / truncation', () => {
       describe('abortOnFileByteLengthLimit = false', () => {
         it('multiple files', async () => {
           const { files } = await createParseFormData({

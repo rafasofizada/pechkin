@@ -3,8 +3,8 @@ import { describe, it } from 'vitest';
 import { limitTest } from "./util";
 import { TotalLimitError } from "../src/error";
 
-describe('Limits', () => {
-  describe('total limits', () => {
+describe('Config', () => {
+  describe('total config', () => {
     describe('maxTotalPartCount', () => {
       describe('limit is inclusive', () => {
         describe('fields only', () => {
