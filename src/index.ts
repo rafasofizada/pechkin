@@ -39,11 +39,22 @@ export async function parseFormData(
     limits: pechkinConfigToBusboyLimits(normalizedConfig),
   });
 
+  const cleanupFn = () => {
+    request.unpipe(parser);
+    parser.removeAllListeners();
+  };
+
   const fields = FieldsPromise(parser);
-  const files = FileIterator(parser, normalizedConfig, fileFieldConfig);
+  const files = FileIterator(parser, normalizedConfig, fileFieldConfig, cleanupFn);
   
   // TODO: Test if throws if request is not multipart/form-data
   request.pipe(parser);
 
-  return { fields: await fields, files };
+  return {
+    fields: await fields.catch((error) => {
+      cleanupFn();
+      throw error;
+    }),
+    files
+  };
 }
