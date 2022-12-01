@@ -3,146 +3,81 @@ import { on, Readable } from "stream";
 
 import { ByteLengthTruncateStream } from "./ByteLengthTruncateStream";
 import { TotalLimitError, FieldLimitError } from "./error";
-import { Pechkin } from "./types";
+import { FileCounter } from "./FileCounter";
+import { Internal } from "./types";
 
 type BusboyFileEventPayload = [field: string, stream: Readable, info: busboy.FileInfo];
 
-export class FileIterator {
-  private readonly iterator: AsyncIterableIterator<BusboyFileEventPayload>;
-  private readonly fileFields: Map<
-    string,
-    {
-      count: number;
-      config: Pechkin.FileFieldConfig;
-    }
-  > = new Map();
+type BusboyFileIterator = AsyncIterableIterator<BusboyFileEventPayload>;
 
-  constructor(
-    private readonly parser: busboy.Busboy,
-    private readonly config: Pechkin.Config,
-    private readonly fileFieldConfigOverride: Record<string, Partial<Pechkin.FileFieldConfig>>,
-  ) {
-    this.iterator = on(this.parser, 'file');
+export function FileIterator(
+  parser: busboy.Busboy,
+  config: Internal.Config,
+  fileFieldConfig: Internal.FileFieldConfig,
+): Internal.Files {
+  const busboyIterator: AsyncIterableIterator<BusboyFileEventPayload> = on(parser, "file");
+  const fileCounter = FileCounter(config, fileFieldConfig);
 
-    /**
-     * Without the `thrown` flag, the following scenario:
-     *
-     * 1. `filesLimit` event is emitted, maxTotalFileCount error is thrown
-     * 2. THEN `partsLimit` event is emitted, maxTotalPartCount error is thrown
-     *
-     * will result in maxTotalPartCount error being thrown, instead of maxTotalFileCount.
-     * 
-     * `thrown` flag and checks in every event listener acts as a locking mechanism.
-     */
-    let thrown = false;
+  /**
+   * AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
+   * from the Node.js source code for on(), the returned object always contains them.
+   */
+  // TODO: Test that this.iterator.throw() and this.iterator[Symbol.asyncIterator].throw() are the same function.
+  parser
+    .once('partsLimit', () => { throw new TotalLimitError("maxTotalPartCount"); })
+    .once('filesLimit', () => { throw new TotalLimitError("maxTotalFileCount"); })
+    .once('error', (error) => { throw error; })
+    .once('close', () => busboyIterator.return!());
 
-    /**
-     * AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
-     * from the Node.js source code for on(), the returned object always contains them.
-     */
-    // TODO: Test that this.iterator.throw() and this.iterator[Symbol.asyncIterator].throw() are the same function.
-    this.parser
-      .once('partsLimit', () => {
-        if (thrown) return;
+  const asyncIterator = BusboyIteratorWrapper(busboyIterator, fileFieldConfig, fileCounter);
 
-        thrown = true;
-        // TODO: INVESTIGATE: Why does this.iterator.throw() not act like reject() in Promises?
-        // Why doesn't the first throw() "lock" the iterator?
-        return this.iterator.throw!(new TotalLimitError("maxTotalPartCount"));
-      })
-      .once('filesLimit', () => {
-        if (thrown) return;
+  // for-await-of loop calls [Symbol.asyncIterator]
+  return Object.create(asyncIterator, { [Symbol.asyncIterator]: { value: () => asyncIterator } });
+}
 
-        thrown = true;
-        return this.iterator.throw!(new TotalLimitError("maxTotalFileCount"))
-      })
-      .once('error', (error) => {
-        if (thrown) return;
+function BusboyIteratorWrapper(
+  busboyIterator: BusboyFileIterator,
+  fileFieldConfig: Internal.FileFieldConfig,
+  fileCounter: FileCounter,
+): Internal.FileIterator {
+  const asyncIterator = busboyIterator[Symbol.asyncIterator]();
 
-        thrown = true;
-        return this.iterator.throw!(error);
-      })
-      .once('close', () => { 
-        return this.iterator.return!();
-      });
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<Pechkin.File> {
-    const asyncIterator = this.iterator[Symbol.asyncIterator]();
-
-    const next = async (): Promise<IteratorResult<Pechkin.File, undefined>> => {
-      // asyncIterator.next() returned by Events.on() accepts no args
-      // https://github.com/nodejs/node/blob/main/lib/events.js#L1017
-      const iterElement = await asyncIterator.next();
-    
-      // `=== true` to narrow `boolean | undefined` to `boolean`
-      if (iterElement.done === true) {
-        return { done: true, value: undefined };
-      }
-
-      const [field, stream, info] = iterElement.value;
-
-      if (!this.fileFields.has(field)) {
-        // TODO: Test the fileFields exists/not->set functionality 
-        this.fileFields.set(field, {
-          count: 0,
-          config: {
-            ...this.config,
-            ...(this.fileFieldConfigOverride[field] ?? {}),
-          }
-        });
-      }
-
-      const fileField = this.fileFields.get(field)!;
-
-      // TODO: Test maxTotalFileFieldCount
-      if ([...this.fileFields.keys()].length > this.config.maxTotalFileFieldCount) {
-        throw new TotalLimitError("maxTotalFileFieldCount", this.config.maxTotalFileFieldCount);
-      }
-
-      if (fileField.count + 1 > fileField.config.maxFileCountPerField) {
-        // TODO: Abort the entire request in return()/cleanup()
-        throw new FieldLimitError("maxFileCountPerField", field, fileField.config.maxFileCountPerField);
-      }
-      
-      fileField.count += 1;
-
-      const truncatedStream = stream.pipe(new ByteLengthTruncateStream(fileField.config.maxFileByteLength));
-
-      return {
+  const next = async (): Promise<IteratorResult<Internal.File, undefined>> => {
+    const iterElement = await asyncIterator.next();
+  
+    // `=== true` to narrow `boolean | undefined` to `boolean`
+    return iterElement.done === true
+      ? iterElement
+      : {
         done: false,
-        value: {
-          field,
-          stream: truncatedStream,
-          byteLength: truncatedStream.byteLengthEvent
-            .then((payload) => {
-              if (payload.truncated && fileField.config.abortOnFileByteLengthLimit) {
-                // TODO: Abort the entire request in return()/cleanup()
-                throw new FieldLimitError("maxFileByteLength", field, fileField.config.maxFileByteLength);
-              }
-
-              return payload;
-            }),
-          ...info,
-        }
+        value: processBusboyFileEventPayload(iterElement.value, fileFieldConfig, fileCounter)
       };
-    }
-
-    /**
-     * From MDN (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of#description):
-     * If the for await...of loop exited early (e.g. a break statement is encountered or an error is thrown),
-     * the return() method of the iterator is called to perform any cleanup.
-     * The returned promise is awaited before the loop exits.
-     */
-    // TODO: Test cleanup
-    const cleanup = (): Promise<IteratorReturnResult<undefined>> => {
-      // TODO: Cleanup
-      return asyncIterator.return!() as Promise<IteratorReturnResult<undefined>>;
-    };
-
-    return Object.create(asyncIterator, {
-      next: { value: next, enumerable: true },
-      return: { value: cleanup, enumerable: true },
-    });
   }
+
+  return Object.create(asyncIterator, { next: { value: next } });
+}
+
+function processBusboyFileEventPayload(
+  [field, stream, info]: BusboyFileEventPayload,
+  { [field]: { maxFileByteLength, abortOnFileByteLengthLimit } }: Internal.FileFieldConfig,
+  fileCounter: FileCounter,
+): Internal.File {
+  // May throw!
+  fileCounter[field] += 1;
+
+  const truncatedStream = stream.pipe(new ByteLengthTruncateStream(maxFileByteLength));
+
+  return {
+    field,
+    stream: truncatedStream,
+    byteLength: truncatedStream.byteLengthEvent
+      .then((payload) => {
+        if (payload.truncated && abortOnFileByteLengthLimit) {
+          throw new FieldLimitError("maxFileByteLength", field, maxFileByteLength);
+        }
+
+        return payload;
+      }),
+    ...info,
+  };
 }

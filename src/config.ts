@@ -39,3 +39,21 @@ export function pechkinConfigToBusboyLimits({
     fileSize:       Infinity,
   };
 }
+
+export type FieldConfig = Record<string, Internal.Config>;
+
+export function FieldConfig(
+  config: Internal.Config,
+  fileFieldConfigOverride: Internal.FileFieldConfigOverride,
+): FieldConfig {
+  return new Proxy(
+    {} as FieldConfig,
+    {
+      get: (target: FieldConfig, field: string) =>
+        (target[field] ??= {
+          ...config,
+          ...(fileFieldConfigOverride[field] ?? {}),
+        })
+    }
+  );
+}
