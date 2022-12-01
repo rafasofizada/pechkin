@@ -108,9 +108,6 @@ export class FileIterator {
       fileField.count += 1;
 
       const truncatedStream = stream.pipe(new ByteLengthTruncateStream(fileField.config.maxFileByteLength));
-  
-      // Busboy's "byteLength" analogue
-      stream.addListener('limit', busboyLimitListener);
 
       return {
         done: false,
@@ -119,8 +116,6 @@ export class FileIterator {
           stream: truncatedStream,
           byteLength: truncatedStream.byteLengthEvent
             .then((payload) => {
-              stream.removeListener('limit', busboyLimitListener);
-
               if (payload.truncated && fileField.config.abortOnFileByteLengthLimit) {
                 // TODO: Abort the entire request in return()/cleanup()
                 throw new FieldLimitError("maxFileByteLength", field, fileField.config.maxFileByteLength);
@@ -151,13 +146,3 @@ export class FileIterator {
     });
   }
 }
-
-function busboyLimitListener(...busboyArgs: unknown[]) {
-  throw new Error(
-    `\
-Busboy 'limit' event.
-Busboy 'fileSize' limit set by pechkinConfigToBusboyLimits(), for some reason, was reached before Pechkin 'maxFileByteLength' was reached.
-This should not happen, please report this issue.
-Busboy args: ${JSON.stringify(busboyArgs, null, 2)}`
-  );
-};
