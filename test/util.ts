@@ -1,6 +1,7 @@
-import FormData from 'form-data';
 import { Readable } from 'stream';
 import { IncomingMessage } from 'http';
+import { FormData, File } from 'formdata-node';
+import { FormDataEncoder } from 'form-data-encoder';
 import { expect } from 'vitest';
 
 import { parseFormData, Pechkin } from '../src';
@@ -35,14 +36,17 @@ export async function createParseFormData<F extends TestFormDataFields>(
 
     for (const [i, value] of values.entries()) {
       if (type === 'file') {
-        form.append(fieldname, Readable.from(value), { filename: `${fieldname}-${i}.dat` });
+        form.append(fieldname, new File([value],  `${fieldname}-${i}.dat`));
       } else {
         form.append(fieldname, value);
       }
     }
   }
 
-  const request: IncomingMessage = Object.create(form, { headers: { value: form.getHeaders() } });
+  const encoder = new FormDataEncoder(form);
+  const stream = Readable.from(encoder.encode());
+  const request: IncomingMessage = Object.create(stream, { headers: { value: encoder.headers } });
+
   const { fields, files } = await parseFormData(request, testDefaultConfig, payloadFormat(fileFieldConfigOverride));
   
   const results = [] as TestFile[];
