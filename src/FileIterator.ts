@@ -36,14 +36,14 @@ export function FileIterator(
   parser
     /*
     The async iterator returned by events.on() apparently doesn't conform to the
-    Iterator protocol, as throw() expects an error, when by protocol it should
-    expect a IteratorResult.
+    Iterator protocol, as throw() rejects with an error, when by protocol it should
+    reject with an IteratorResult.
     https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols.
     */
     .once('partsLimit', () => asyncIterator.throw!(new TotalLimitError("maxTotalPartCount")))
     .once('filesLimit', () => asyncIterator.throw!(new TotalLimitError("maxTotalFileCount")))
     .once('error', (error) => asyncIterator.throw!(error))
-    .once('close', () => asyncIterator.return!());
+    .once('finish', () => asyncIterator.return!());
 
   const asyncIterableIterator = {
     ...asyncIterator,
@@ -58,14 +58,13 @@ function BusboyIteratorWrapper(
   busboyIterator: BusboyFileIterator,
   fileFieldConfig: Internal.FileFieldConfig,
   fileCounter: FileCounter,
-  cleanupFn?: () => Promise<void> | void,
+  cleanupFn?: () => void,
 ): Internal.FileIterator {
   const busboyAsyncIterator = busboyIterator[Symbol.asyncIterator]();
 
-  const next = async (): Promise<IteratorResult<Internal.File, undefined>> => {
+  const nextFn = async (): Promise<IteratorResult<Internal.File, undefined>> => {
     try {
       const iterElement = await busboyAsyncIterator.next();
-    
       // `=== true` to narrow `boolean | undefined` to `boolean`
       return iterElement.done === true
         ? iterElement
@@ -74,8 +73,19 @@ function BusboyIteratorWrapper(
           value: processBusboyFileEventPayload(iterElement.value, fileFieldConfig, fileCounter)
         };
     } catch (error) {
-      throwFn(error as Error);
-      return { done: true, value: undefined };
+      /*
+      Three possibilities of ending up here:
+      1. busboyAsyncIterator.next() threw because we called throw() previously
+      2. busboyAsyncIterator.next() encountered an error and threw "naturally"
+      3. processBusboyFileEventPayload() threw (which shouldn't happen but whatever)
+
+      In case 1, cleanupFn() has already been run in throw(), but still it wouldn't hurt to run it again.
+      In case 2 & 3, cleanupFn() hasn't been run ever, so we run it here.
+
+      In all cases, we want to rethrow the error.
+      */
+      cleanupFn?.();
+      throw error;
     }
   };
 
@@ -90,28 +100,38 @@ function BusboyIteratorWrapper(
     
     `thrown` flag and checks in every event listener acts as a locking mechanism.
     
-    TODO: INVESTIGATE: Why does iterator.throw() not act like reject() in Promises?
+    Q:
+    Why does iterator.throw() not act like reject() in Promises?
     Why doesn't the first throw() "lock" the iterator?
+
+    A:
+    throw() sets the local error variable inside events.on().
+    The last call to throw() "wins" and sets the final error value.
+
+    TODO: Can this be changed in Node.js?
     */
     let thrown = false;
 
-    return async (error: Error): Promise<unknown> => {
+    return (error: Error) => {
       if (thrown) return;
-
       thrown = true;
 
-      await cleanupFn?.();
-
-      return busboyAsyncIterator.throw!(error);
+      cleanupFn?.();
+      busboyAsyncIterator.throw!(error);
     };
   })();
+
+  const returnFn = async () => {
+    cleanupFn?.();
+    return busboyAsyncIterator.return!() as Promise<IteratorReturnResult<undefined>>;
+  };
 
   return Object.create(
     busboyAsyncIterator,
     {
-      next: { value: next },
+      next: { value: nextFn },
       throw: { value: throwFn },
-      return: { value: cleanupFn },
+      return: { value: returnFn },
     }
   );
 }
@@ -140,3 +160,68 @@ function processBusboyFileEventPayload(
     ...info,
   };
 }
+
+/*
+
+> eIter = events.on(target, event, handler);
+
+unconsumedEvents = [];
+unconsumedPromises = [];
+ERROR = null;
+FINISHED = false;
+
+--------------------------------------------
+CASE:
+- next() called BEFORE any event is emitted
+
+for await (const event of eIter)
+  eIter.next()
+    unconsumedEvents.shift() // undefined
+    unconsumedPromises.push(new Promise()) // uP = [ P0 ]
+    <AWAIT 0> ...await uP[0]...
+
+> busboy.emit('file')
+
+eventHandler()
+  unconsumedPromises.shift() // P0, uP = []
+  P0.resolve(<result<event0>>) // { value: event0, done: false }
+
+    <AWAIT 0 CONT> await P0 => { value: event0, done: false }
+
+// IF throw() is called in this case, the P0 awaited by the for-await-of loop
+// will reject and throw. OK. 
+
+--------------------------------------------
+CASE:
+- next() called AFTER an 2 events has been emitted
+- throw() called AFTER event1 has been emitted
+
+> busboy.emit('file')
+
+eventHandler()
+  unconsumedPromises.shift() // undefined, =>
+  unconsumedEvents.push(event1) // uE = [ event1 ]
+
+> busboy.emit('partsLimit')
+  > eIter.throw(new Error('partsLimit'))
+    ERROR = new Error('partsLimit')
+
+> busboy.emit('file')
+
+eventHandler()
+  unconsumedPromises.shift() // undefined, =>
+  unconsumedEvents.push(event2) // uE = [ event1, event2 ]
+
+for await (const event of eIter)
+  eIter.next() // uE = [ event1, event2 ]
+    unconsumedEvents.shift() // event1
+
+Execution stack:
+<event0>, <event1>, ..., <eventN>,
+error check,  <-- throw() acts here
+finished (return) check,
+<promise0>, <promise1>, ..., <promiseN>
+| 
+|---- AbortSignal() acts here
+
+*/

@@ -17,6 +17,10 @@ export namespace Pechkin {
   export type Files = Internal.Files;
 }
 
+process.on("uncaughtException", (error) => {
+  console.log('UNCAUGHT 😱', error);
+});
+
 export async function parseFormData(
   request: IncomingMessage,
   config: Partial<Pechkin.Config> = {},
@@ -41,7 +45,6 @@ export async function parseFormData(
 
   const cleanupFn = () => {
     request.unpipe(parser);
-    parser.removeAllListeners();
   };
 
   const fields = FieldsPromise(parser);
