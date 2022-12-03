@@ -43,11 +43,6 @@ export function FileIterator(
     .once('error', (error) => asyncIterator.throw!(error))
     .once('finish', () => asyncIterator.return!());
 
-  const asyncIterableIterator = {
-    ...asyncIterator,
-    [Symbol.asyncIterator]() { return asyncIterableIterator; },
-  };
-
   // for-await-of loop calls [Symbol.asyncIterator]
   return Object.create(asyncIterator, { [Symbol.asyncIterator]: { value: () => asyncIterator } });
 }
@@ -60,9 +55,25 @@ function BusboyIteratorWrapper(
   const fileCounter = FileCounter(config);
   const busboyIterator = busboyIterable[Symbol.asyncIterator]();
 
-  const nextFn = async (): Promise<IteratorResult<Internal.File, undefined>> => {
+  return Object.create(
+    busboyIterator,
+    {
+      next: { value: nextFnFactory(busboyIterable, config, fileCounter, cleanupFn) },
+      throw: { value: throwFnFactory(busboyIterator) },
+      return: { value: returnFnFactory(busboyIterator, cleanupFn) },
+    }
+  );
+}
+
+function nextFnFactory(
+  busboyIterator: AsyncIterableIterator<BusboyFileEventPayload>,
+  fileFieldConfig: Internal.FileFieldConfig,
+  fileCounter: FileCounter,
+  cleanupFn?: () => void,
+) {
+  return async function nextFn(): Promise<IteratorResult<Internal.File, undefined>> {
     try {
-      const iterElement = await busboyAsyncIterator.next();
+      const iterElement = await busboyIterator.next();
       // `=== true` to narrow `boolean | undefined` to `boolean`
       return iterElement.done === true
         ? iterElement
@@ -86,52 +97,34 @@ function BusboyIteratorWrapper(
       throw error;
     }
   };
+}
 
-  const throwFn = (() => {
-    /*
-    Without the `thrown` flag, the following scenario:
-  
-    1. `filesLimit` event is emitted, maxTotalFileCount error is thrown
-    2. THEN `partsLimit` event is emitted, maxTotalPartCount error is thrown
-  
-    will result in maxTotalPartCount error being thrown, instead of maxTotalFileCount.
-    
-    `thrown` flag and checks in every event listener acts as a locking mechanism.
-    
-    Q:
-    Why does iterator.throw() not act like reject() in Promises?
-    Why doesn't the first throw() "lock" the iterator?
+function throwFnFactory(busboyIterator: AsyncIterableIterator<BusboyFileEventPayload>) {
+  /*
+  events.on()[Symbol.asyncIterator]().throw() is NOT idempotent.
+  Called multiple times with an error passed as an argument,
+  the LAST error passed will be the one that is thrown.
 
-    A:
-    throw() sets the local error variable inside events.on().
-    The last call to throw() "wins" and sets the final error value.
+  `thrown` flag is needed to provide idempotency.
+  */
+  let thrown = false;
 
-    TODO: Can this be changed in Node.js?
-    */
-    let thrown = false;
+  return function throwFn(error: Error) {
+    if (thrown) return;
+    thrown = true;
 
-    return (error: Error) => {
-      if (thrown) return;
-      thrown = true;
-
-      cleanupFn?.();
-      busboyAsyncIterator.throw!(error);
-    };
-  })();
-
-  const returnFn = async () => {
-    cleanupFn?.();
-    return busboyAsyncIterator.return!() as Promise<IteratorReturnResult<undefined>>;
+    busboyIterator.throw!(error);
   };
+}
 
-  return Object.create(
-    busboyAsyncIterator,
-    {
-      next: { value: nextFn },
-      throw: { value: throwFn },
-      return: { value: returnFn },
-    }
-  );
+function returnFnFactory(
+  busboyIterator: AsyncIterableIterator<BusboyFileEventPayload>,
+  cleanupFn?: () => void,
+) {
+  return async function returnFn() {
+    cleanupFn?.();
+    return busboyIterator.return!();
+  };
 }
 
 function processBusboyFileEventPayload(
