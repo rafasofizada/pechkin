@@ -10,14 +10,6 @@ type BusboyFileEventPayload = [field: string, stream: Readable, info: busboy.Fil
 
 type BusboyFileIterator = AsyncIterableIterator<BusboyFileEventPayload>;
 
-/*
-TODO: Test the iteration protocol.
-
-1. Promise rejections in next() don't get caught by the for-await-of loop,
-   so return() is not triggered. Has to be handled manually
-2. Check that errors thrown inside the loop body get caught and return() is triggered
-*/
-
 export function FileIterator(
   parser: busboy.Busboy,
   config: Internal.CombinedConfig,

@@ -116,11 +116,6 @@ export async function limitTest(
   error?: any,
 ): Promise<void> {
   if (expectation === 'resolve') {
-    /**
-     * Reduce the payload to two arrays, one for fields and one for files, of:
-     * - fieldname (without the `__type` part)
-     * - count of values for that field
-     */
     const [payloadFields, payloadFiles] = Object.entries(payload).reduce((acc, [field, values]) => {
       const [fieldname, type] = field.split('__') as ['file' | 'field', string];
 
