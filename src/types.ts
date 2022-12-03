@@ -12,9 +12,9 @@ export namespace Internal {
     stream: Readable;
   };
 
-  export type Files = AsyncIterableIterator<File>;
+  export type Files = Required<AsyncIterableIterator<File>>;
 
-  export type FileIterator = AsyncIterator<File>;
+  export type FileIterator = Required<AsyncIterator<File>>;
 
   export type BusboyConfig = Omit<busboy.BusboyConfig, 'headers' | 'config'>;
 
@@ -31,7 +31,13 @@ export namespace Internal {
     abortOnFileByteLengthLimit: boolean;          
   };
 
+  export const BaseConfig = Symbol('BaseConfig');
+
+  export type BaseConfig = typeof BaseConfig;
+
   export type FileFieldConfig = Record<string, Config>;
+
+  export type CombinedConfig = Record<string | BaseConfig, Internal.Config>;
 
   export type FileFieldSpecificConfig = Pick<Config, "maxFileByteLength" | "maxFileCountPerField" | "abortOnFileByteLengthLimit">;
 

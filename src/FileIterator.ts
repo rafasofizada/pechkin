@@ -20,14 +20,12 @@ TODO: Test the iteration protocol.
 
 export function FileIterator(
   parser: busboy.Busboy,
-  config: Internal.Config,
-  fileFieldConfig: Internal.FileFieldConfig,
-  cleanupFn?: () => Promise<void> | void,
+  config: Internal.CombinedConfig,
+  cleanupFn?: () => void,
 ): Internal.Files {
   const busboyIterator: AsyncIterableIterator<BusboyFileEventPayload> = on(parser, "file");
-  const fileCounter = FileCounter(config, fileFieldConfig);
-
-  const asyncIterator = BusboyIteratorWrapper(busboyIterator, fileFieldConfig, fileCounter, cleanupFn);
+  
+  const asyncIterator = BusboyIteratorWrapper(busboyIterator, config, cleanupFn);
 
   /*
   AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
@@ -55,12 +53,12 @@ export function FileIterator(
 }
 
 function BusboyIteratorWrapper(
-  busboyIterator: BusboyFileIterator,
-  fileFieldConfig: Internal.FileFieldConfig,
-  fileCounter: FileCounter,
+  busboyIterable: BusboyFileIterator,
+  config: Internal.CombinedConfig,
   cleanupFn?: () => void,
 ): Internal.FileIterator {
-  const busboyAsyncIterator = busboyIterator[Symbol.asyncIterator]();
+  const fileCounter = FileCounter(config);
+  const busboyIterator = busboyIterable[Symbol.asyncIterator]();
 
   const nextFn = async (): Promise<IteratorResult<Internal.File, undefined>> => {
     try {

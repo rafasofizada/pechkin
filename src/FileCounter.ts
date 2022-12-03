@@ -8,10 +8,7 @@ export type FileCounter = {
   [field: string]: number;
 };
 
-export function FileCounter(
-  { maxTotalFileFieldCount }: Internal.Config,
-  fileFieldConfig: Internal.FileFieldConfig,
-): FileCounter {
+export function FileCounter(config: Internal.CombinedConfig): FileCounter {
   return new Proxy(
     {
       get [FileFieldCount](): number {
@@ -25,11 +22,13 @@ export function FileCounter(
           throw new TypeError("File count cannot be increased by more than 1");
         }
 
+        const { maxTotalFileFieldCount } = config[Internal.BaseConfig];
+
         if (proxy[FileFieldCount] > maxTotalFileFieldCount) {
           throw new TotalLimitError("maxTotalFileFieldCount", maxTotalFileFieldCount);
         }
 
-        const { maxFileCountPerField } = fileFieldConfig[field];
+        const { maxFileCountPerField } = config[field];
 
         if (proxy[field] + 1 > maxFileCountPerField) {
           // TODO: Abort the entire request in return()/cleanup()

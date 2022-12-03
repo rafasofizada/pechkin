@@ -1,8 +1,32 @@
 import * as busboy from 'busboy';
+import { Pechkin } from '.';
 
 import { Internal } from './types';
 
-export const defaultConfig: Internal.Config = {                                  
+export function CombinedConfig(
+  partialConfig: Pechkin.Config = {},
+  fileFieldConfigOverride: Internal.FileFieldConfigOverride = {},
+): Internal.CombinedConfig {
+  const config = {
+    ...defaultConfig,
+    ...partialConfig,
+  };
+
+  return new Proxy(
+    {} as Internal.CombinedConfig,
+    {
+      get: (target: Internal.CombinedConfig, fieldOrBaseProp: string | Internal.BaseConfig) =>
+        fieldOrBaseProp === Internal.BaseConfig
+          ? config
+          : (target[fieldOrBaseProp] ??= {
+            ...config,
+            ...(fileFieldConfigOverride[fieldOrBaseProp] ?? {}),
+          })
+    }
+  );
+}
+
+const defaultConfig: Internal.Config = {                                  
                                                  // PECHKIN DEFAULT      BUSBOY ANALOG       BUSBOY DEFAULT
     maxTotalHeaderPairs: 2000,                   //            2000      "headerPairs"                 2000
     maxTotalPartCount: 110,                      //       100 bytes      "parts"                  100 bytes
@@ -38,22 +62,4 @@ export function pechkinConfigToBusboyLimits({
     fieldSize:      maxFieldValueByteLength,
     fileSize:       Infinity,
   };
-}
-
-export type FieldConfig = Record<string, Internal.Config>;
-
-export function FieldConfig(
-  config: Internal.Config,
-  fileFieldConfigOverride: Internal.FileFieldConfigOverride,
-): FieldConfig {
-  return new Proxy(
-    {} as FieldConfig,
-    {
-      get: (target: FieldConfig, field: string) =>
-        (target[field] ??= {
-          ...config,
-          ...(fileFieldConfigOverride[field] ?? {}),
-        })
-    }
-  );
 }

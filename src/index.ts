@@ -4,7 +4,7 @@ import { IncomingMessage } from 'http';
 import { Internal } from './types';
 import { FileIterator } from './FileIterator';
 import { FieldsPromise } from './FieldPromise';
-import { defaultConfig, FieldConfig, pechkinConfigToBusboyLimits } from './config';
+import { CombinedConfig, pechkinConfigToBusboyLimits } from './config';
 
 export * from './error';
 
@@ -23,24 +23,19 @@ process.on("uncaughtException", (error) => {
 
 export async function parseFormData(
   request: IncomingMessage,
-  config: Partial<Pechkin.Config> = {},
-  fileFieldConfigOverride: Pechkin.FileFieldConfigOverride = {},
+  config?: Pechkin.Config,
+  fileFieldConfigOverride?: Pechkin.FileFieldConfigOverride,
   busboyConfig: Pechkin.BusboyConfig = {},
 ): Promise<{
   fields: Pechkin.Fields,
   files: Pechkin.Files,
 }> {
-  const normalizedConfig = {
-    ...defaultConfig,
-    ...config,
-  };
-
-  const fileFieldConfig = FieldConfig(normalizedConfig, fileFieldConfigOverride);
+  const finalConfig = CombinedConfig(config, fileFieldConfigOverride);
 
   const parser = busboy({
     headers: request.headers,
     ...busboyConfig,
-    limits: pechkinConfigToBusboyLimits(normalizedConfig),
+    limits: pechkinConfigToBusboyLimits(finalConfig[Internal.BaseConfig]),
   });
 
   const cleanupFn = () => {
@@ -48,7 +43,7 @@ export async function parseFormData(
   };
 
   const fields = FieldsPromise(parser);
-  const files = FileIterator(parser, normalizedConfig, fileFieldConfig, cleanupFn);
+  const files = FileIterator(parser, finalConfig, cleanupFn);
   
   // TODO: Test if throws if request is not multipart/form-data
   request.pipe(parser);
