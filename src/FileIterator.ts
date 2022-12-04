@@ -15,9 +15,19 @@ export function FileIterator(
   config: Internal.CombinedConfig,
   cleanupFn?: () => void,
 ): Internal.Files {
-  const busboyIterator: AsyncIterableIterator<BusboyFileEventPayload> = on(parser, "file");
-  
-  const asyncIterator = BusboyIteratorWrapper(busboyIterator, config, cleanupFn);
+  const fileCounter = FileCounter(config);
+  const busboyIterableIterator: BusboyFileIterator = on(parser, "file");
+
+  const pechkinIterableIterator = Object.create(
+    busboyIterableIterator,
+    {
+      next: { value: nextFnFactory(busboyIterableIterator, config, fileCounter, cleanupFn) },
+      throw: { value: throwFnFactory(busboyIterableIterator) },
+      return: { value: returnFnFactory(busboyIterableIterator, cleanupFn) },
+      // for-await-of loop calls [Symbol.asyncIterator]
+      [Symbol.asyncIterator]: { value: () => busboyIterableIterator },
+    }
+  );
 
   /*
   AsyncIterableIterator interface's next(), return(), throw() methods are optional, however,
@@ -30,31 +40,12 @@ export function FileIterator(
     reject with an IteratorResult.
     https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols.
     */
-    .once('partsLimit', () => asyncIterator.throw!(new TotalLimitError("maxTotalPartCount")))
-    .once('filesLimit', () => asyncIterator.throw!(new TotalLimitError("maxTotalFileCount")))
-    .once('error', (error) => asyncIterator.throw!(error))
-    .once('finish', () => asyncIterator.return!());
+    .once('partsLimit', () => pechkinIterableIterator.throw!(new TotalLimitError("maxTotalPartCount")))
+    .once('filesLimit', () => pechkinIterableIterator.throw!(new TotalLimitError("maxTotalFileCount")))
+    .once('error', (error) => pechkinIterableIterator.throw!(error))
+    .once('finish', () => pechkinIterableIterator.return!());
 
-  // for-await-of loop calls [Symbol.asyncIterator]
-  return Object.create(asyncIterator, { [Symbol.asyncIterator]: { value: () => asyncIterator } });
-}
-
-function BusboyIteratorWrapper(
-  busboyIterable: BusboyFileIterator,
-  config: Internal.CombinedConfig,
-  cleanupFn?: () => void,
-): Internal.FileIterator {
-  const fileCounter = FileCounter(config);
-  const busboyIterator = busboyIterable[Symbol.asyncIterator]();
-
-  return Object.create(
-    busboyIterator,
-    {
-      next: { value: nextFnFactory(busboyIterable, config, fileCounter, cleanupFn) },
-      throw: { value: throwFnFactory(busboyIterator) },
-      return: { value: returnFnFactory(busboyIterator, cleanupFn) },
-    }
-  );
+  return pechkinIterableIterator;
 }
 
 function nextFnFactory(
