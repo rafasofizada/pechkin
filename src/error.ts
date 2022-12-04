@@ -34,6 +34,10 @@ class InternalError extends Error {
   }
 }
 
+export function isPechkinError(error: Error): error is TotalLimitError | FieldLimitError {
+  return error instanceof InternalError;
+}
+
 export class TotalLimitError extends InternalError {
   constructor(totalLimitType: TotalLimitType, configurationInfo?: unknown) {
     super(totalLimitType, configurationInfo);
