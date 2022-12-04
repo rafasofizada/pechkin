@@ -38,6 +38,7 @@ export async function parseFormData(
     limits: pechkinConfigToBusboyLimits(finalConfig[Internal.BaseConfig]),
   });
 
+  // TODO: Test effect of cleanup
   const cleanupFn = () => {
     request.unpipe(parser);
   };

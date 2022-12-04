@@ -39,7 +39,6 @@ describe('Files', () => {
             maxFileByteLength: 9,
           });
   
-          // TODO: Automate test?
           expect(files).toEqual([
             expect.objectContaining({
               field: 'truncateAll',
@@ -96,7 +95,6 @@ describe('Files', () => {
             }
           });
     
-          // TODO: Automate test?
           expect(files).toEqual([
             expect.objectContaining({
               field: 'dontTruncate',

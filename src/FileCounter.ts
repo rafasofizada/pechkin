@@ -31,7 +31,6 @@ export function FileCounter(config: Internal.CombinedConfig): FileCounter {
         const { maxFileCountPerField } = config[field];
 
         if (proxy[field] + 1 > maxFileCountPerField) {
-          // TODO: Abort the entire request in return()/cleanup()
           throw new FieldLimitError("maxFileCountPerField", field, maxFileCountPerField);
         }
 

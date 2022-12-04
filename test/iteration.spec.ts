@@ -1,6 +1,4 @@
 /*
-TODO: Test the (async) iteration protocol and events.on() conformity to it.
-
 1. Errors in next() reject next()'s promise.
   - busboyAsyncIterator.next() threw because we called throw() previously (synonymous with [7])
     - busboyAsyncIterator.throw() is idempotent
