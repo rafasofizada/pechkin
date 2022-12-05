@@ -1,32 +1,24 @@
+# Plan
+- Rewrite the intro / comparison with Multer with the consideration that:
+  - Pechkin is mostly an abstraction / simplification over Busboy, rather than a drop-in replacement for Multer
+  - Pechkin doesn't provide Multer::StorageEngine yet, but it's in TODO
+  - Compare with Formidable
+  - Focus on multiple files, mixed with fields
+- Examples:
+  
+
+
 # Pechkin
 
-Pechkin is a Node.js library for handling `multipart/form-data` requests (most commonly, file uploads). It provides a simple API to extract fields and files from a request.
+Pechkin is a modern, asynchronous, flexible and configurable Node.js library for handling file uploads (i.e. `multipart/form-data` requests), written in TypeScript.
 
-## Comparison with Multer
-
-Both Pechkin and Multer are written on top of [Busboy](https://github.com/mscdex/busboy). Pechkin was designed as a modern, asynchronous, configurable alternative to Multer. By level of abstraction, Pechkin fits a good spot between Busboy and Multer – it simplifies and provides configuration for Busboy's "state machine", yet is more flexible and less abstracted than Multer.
-
-Some specific differences and improvements:
-
-- **Asynchronous file handling.**
-
-  With Multer, you have to wait until all fields and files are parsed and processed to get access to the resulting `request` object (with fields attached to the `body` field and files to the `files` field). With Pechkin, `await parseFormData(request)` returns a `fields` object and a `files` async generator/iterator, which allows you to access:
-
-  - Fields, before any file is processed;
-  - Each file *as soon as it's encountered* in the request, one after another.
-
-  This allows you, for example, to **perform request body validation before having to process any files.**
-
-- **Separation of concerns.**
-
-  You don't have to provide any file handling implementation to Pechkin, unlike with Multer and its [`StorageEngine` class](https://github.com/expressjs/multer/blob/master/StorageEngine.md). Pechkin provides you easy access to fields and files, their handling is totally up to you.
-
-- **Flexible configuration.**
-
-  Apart from all the configuration options Multer provides, you get:
-
-  - Per-field file length (`config.fileOverride.maxFileByteLength`) & count (`config.fileOverride.maxFileCountPerField`) configuration options;
-  - Per-field choice between aborting the entire request (due to error or filter/constraint failures) and simply skipping / ignoring the file.
+# Highlights
+- **Fast** (based on [`busboy`](https://www.npmjs.com/package/busboy))
+- **Asynchronous**, `Promise`- and `AsyncIterator`-based. Fields and each file are available as `Promise`s as soon as they're parsed.
+- **Flexible**: you can provide your own storage implementation, use the `MemoryStorageEngine` and `DiskStorageEngine` included in the library, or provide _no implementation_ and handle the `files` `AsyncIterableIterator` yourself.
+- **Highly configurable**, with possibility to override (some) configuration options per-field.
+- **Expressive** TypeScript typings.
+- **Robust error handling**: you can be sure that all errors have been caught, handled, and underlying resources were properly handled/closed.
 
 ## Requirements
 
@@ -99,14 +91,21 @@ http
 
 ### Express – save to random temp location
 
-Pechkin **doesn't provide an Express middleware** out-of-the-box, but it's extremely easy to create one yourself.
+Pechkin **doesn't provide an Express middleware** out-of-the-box, but it's very easy to create one yourself.
 
 ## API
 
+### Configuration
+
+
+
 TODO:
-- Filters ?
-- Function to abort request
-- Express middleware
+- Restrict allowed file fields
+- ? Optional storage engine
+- Examples for:
+  - Express / Koa middleware examples
+  - Concurrent / one-to-one / batch processing of files
 - Test Node.js version compatibility
 - Test NPM library build
-- https://v4.chriskrycho.com/2018/how-to-bundle-typescript-type-definitions.html
+
+https://v4.chriskrycho.com/2018/how-to-bundle-typescript-type-definitions.html
