@@ -119,8 +119,25 @@ return a Promise, containing:
 - All parsed `fields`,
 - An [`AsyncIterableIterator`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#the_async_iterator_and_async_iterable_protocols) of `files`, which you can use both as an iterator (calling `await files.next()`), or as an iterable (`for await (const file of files) { ... }`).
 
-> 🚧 `fields` are parsed **only until the first `file`** – when constructing a `FormData` request, you should always put all `fields` before any `files`.
+> Warning 🚧:
+> `fields` are parsed **only until the first `file`** – when constructing a `FormData` request, you should always put all `fields` before any `files`.
 
+### `config`
+
+<!-- https://www.tablesgenerator.com/markdown_tables -->
+
+| Key                        | Type    | Default                     | Description                                                                                                                                                                               |
+|----------------------------|---------|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| maxTotalHeaderPairs        | number  | 2000                        | From Busboy: the max number of header key-value pairs to parse. Default is same as node's http module.                                                                                    |
+| maxTotalPartCount          | number  | 110 (100 fields + 10 files) | The max number of parts (fields + files).                                                                                                                                                 |
+| maxFieldKeyByteLength      | number  | 100 bytes                   | The max byte length (each char is 1 byte) of a field name.                                                                                                                                |
+| maxFieldValueByteLength    | number  | 1024 * 1024 bytes, 1 MB     | The max byte length of a field value.                                                                                                                                                     |
+| maxTotalFieldCount         | number  | 100                         | The max total number of all non-file fields.                                                                                                                                              |
+| maxTotalFileFieldCount     | number  | 1                           | The max total number of all file fields.<br>Each file field may contain more than 1 file, see `config.maxFileCountPerField`.<br><br>To use if you have more than 1 `<input type="file">`. |
+| maxTotalFileCount          | number  | 10                          | The max total number of all files (summed across all fields).                                                                                                                             |
+| maxFileByteLength          | number  | 50 * 1024 * 1024 (50 MB)    | The max byte length of a file                                                                                                                                                             |
+| maxFileCountPerField       | number  | 1                           | The max number of files allowed for each file field.<br><br>To use with `<input type="file" multiple>`.                                                                                   |
+| abortOnFileByteLengthLimit | boolean | true                        | Whether to throw an error (and do cleanup, i.e. abort the entire operation)                                                                                                               |
 ### Configuration
 
 
