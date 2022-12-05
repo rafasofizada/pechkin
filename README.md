@@ -10,7 +10,7 @@
 
 # Pechkin
 
-Pechkin is a modern, asynchronous, flexible and configurable Node.js library for handling file uploads (i.e. `multipart/form-data` requests), written in TypeScript.
+Pechkin is a modern, asynchronous, flexible and configurable Node.js library for handling file uploads (i.e. `multipart/form-data` requests), written in TypeScript. It's optimized for complex usecases with fields and multiple files mixed together.
 
 # Highlights
 - **Fast** (based on [`busboy`](https://www.npmjs.com/package/busboy))
@@ -18,7 +18,7 @@ Pechkin is a modern, asynchronous, flexible and configurable Node.js library for
 - **Flexible**: you can provide your own storage implementation, use the `MemoryStorageEngine` and `DiskStorageEngine` included in the library, or provide _no implementation_ and handle the `files` `AsyncIterableIterator` yourself.
 - **Highly configurable**, with possibility to override (some) configuration options per-field.
 - **Expressive** TypeScript typings.
-- **Robust error handling**: you can be sure that all errors have been caught, handled, and underlying resources were properly handled/closed.
+- **Robust error handling**: you can be sure that all errors have been caught, handled, and underlying resources (streams) were properly handled/closed.
 
 ## Requirements
 
@@ -94,6 +94,32 @@ http
 Pechkin **doesn't provide an Express middleware** out-of-the-box, but it's very easy to create one yourself.
 
 ## API
+
+Pechkin exposes only 1 function:
+
+### `Pechkin.parseFormData()`
+
+```ts
+function parseFormData<S, R>(
+  request:                    IncomingMessage,
+  config?:                    | Pechkin.Config
+                              | Pechkin.ConfigWStorageEngine<S, R>,
+  fileFieldConfigOverride?:   Pechkin.FileFieldConfigOverride,
+  busboyConfig?:              Pechkin.BusboyConfig,
+): Promise<{
+  fields: Pechkin.Fields,
+  files:
+    | Pechkin.Files
+    | Pechkin.ProcessedFiles<S>,
+}>
+```
+
+Given a `request` (of type `http.IncomingMessage`, e.g. the request object in [`http.createServer((`**`req, `**`...) => { ... })`](https://nodejs.org/api/http.html#httpcreateserveroptions-requestlistener)),
+return a Promise, containing:
+- All parsed `fields`,
+- An [`AsyncIterableIterator`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#the_async_iterator_and_async_iterable_protocols) of `files`, which you can use both as an iterator (calling `await files.next()`), or as an iterable (`for await (const file of files) { ... }`).
+
+> 🚧 `fields` are parsed **only until the first `file`** – when constructing a `FormData` request, you should always put all `fields` before any `files`.
 
 ### Configuration
 
