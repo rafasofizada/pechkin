@@ -169,7 +169,7 @@ await parseFormData(
 
 Now, if you send a `FormData` request with following properties _(represented as JSON, this is NOT a valid FormData request)_:
 
-```json
+```json5
 {
   "field1": {
     "type": "field",
