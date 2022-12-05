@@ -27,18 +27,18 @@ export function CombinedConfig(
 }
 
 const defaultConfig: Internal.Config = {                                  
-                                                 // PECHKIN DEFAULT      BUSBOY ANALOG       BUSBOY DEFAULT
-    maxTotalHeaderPairs: 2000,                   //            2000      "headerPairs"                 2000
-    maxTotalPartCount: 110,                      //       100 bytes      "parts"                  100 bytes
-    maxFieldKeyByteLength: 100,                  //            1 MB      "fieldNameSize"               1 MB
-    maxFieldValueByteLength: 1024 * 1024,        //           50 MB      "fieldSize"               Infinity
-    maxTotalFieldCount: 100,                     //             100      "fields"                  Infinity
-    maxTotalFileFieldCount: 1,                   //              10                                
-    maxTotalFileCount: 10,                       //  100 + 10 = 110      "files"                   Infinity 
-    maxFileByteLength: 50 * 1024 * 1024,         //               1      "fileSize"                Infinity
-    maxFileCountPerField: 1,                     //               1
-    abortOnFileByteLengthLimit: true,            //            true      stream.truncated,
-                                                 //                      "limit" event                
+                                                 //                 PECHKIN DEFAULT      BUSBOY ANALOG       BUSBOY DEFAULT
+    maxTotalHeaderPairs: 2000,                   //                            2000      "headerPairs"                 2000
+    maxTotalPartCount: 110,                      // 100 (fields) + 10 (files) = 110      "parts"                   Infinity
+    maxFieldKeyByteLength: 100,                  //                       100 bytes      "fieldNameSize"          100 bytes
+    maxFieldValueByteLength: 1024 * 1024,        //                            1 MB      "fieldSize"                   1 MB
+    maxTotalFieldCount: 100,                     //                             100      "fields"                  Infinity
+    maxTotalFileFieldCount: 1,                   //                               1                                
+    maxTotalFileCount: 10,                       //                              10      "files"                   Infinity 
+    maxFileByteLength: 50 * 1024 * 1024,         //                           50 MB      "fileSize"                Infinity
+    maxFileCountPerField: 1,                     //                               1
+    abortOnFileByteLengthLimit: true,            //                            true      stream.truncated,
+                                                 //                                      "limit" event                
 };
 
 export function pechkinConfigToBusboyLimits({
