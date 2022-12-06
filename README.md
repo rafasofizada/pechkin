@@ -21,6 +21,9 @@ Pechkin is a modern, asynchronous, flexible and configurable Node.js library for
 
 # Examples / Usage
 
+## FOR FULL WORKING EXAMPLES, SEE THE `examples/` FOLDER 
+
+
 **Importing**
 
 The package provides both CommonJS and ESM modules.
@@ -39,50 +42,210 @@ const pechkin = require('pechkin');
 const { parseFormData } = require('pechkin');
 ```
 
-## Basic (standard HTTP module) – save to random temp location
+## Essential: save to random temp location
+### Files are processed sequentially
 
 ```js
-const fs = require('fs');
-const http = require('http');
-const os = require('os');
-const path = require('path');
 
-const pechkin = require('pechkin');
+// Full working example: `examples/basic-fs-temp.js`
 
-http
-  .createServer(async (req, res) => {
-    if (req.method === 'POST') {
-      const { fields, files } = await pechkin.parseFormData(req);
-
-      console.log('Received fields:', fields); // request body
-
-      for await (const { stream, field, filename, byteLength, mimeType } of files) {
-        // In real projects use https://www.npmjs.com/package/mime-types to convert mimetypes to extensions.
-        const extension = mimeType.split('/')[1]; 
-        stream.pipe(fs.createWriteStream(path.join(os.tmpdir(), `${filename}.${mimeType.split('/')[1]}`)));
-
-        // `byteSize` is a promise that resolves only after the entire `file.stream` has been consumed
-        // (in this case – stream finishes piping, emits an 'end' event and the file gets saved to the file system).
-        // You should `await byteSize` only AFTER the code that consumes the stream (e.g. uploading to AWS S3,
-        // loading into memory, etc.)
-        console.log('Received file:', { field, filename, mimeType, length: await byteLength });
-      }
-
-      res.writeHead(200);
-      return res.end();
-    }
-
-    res.writeHead(404);
-    return res.end();
-  })
-  .listen(8000, () => {
-    console.log('Send a multipart/form-data request to localhost:8000 to see Pechkin in action...');
+http.createServer(async (req, res) => {
+  const { fields, files } = await pechkin.parseFormData(req, {
+    maxTotalFileFieldCount: Infinity,
+    maxFileCountPerField: Infinity,
+    maxTotalFileCount: Infinity
   });
+
+  const results = [];
+
+  for await (const { filename: originalFilename, byteLength, stream, ...file } of files) {
+    const newFilename = `${Math.round(Math.random() * 1000)}-${originalFilename}`;
+    const dest = path.join(os.tmpdir(), newFilename);
+
+    stream.pipe(fs.createWriteStream(dest));
+    /*
+    `byteSize` resolves only after the entire `file.stream` has been consumed
+    You should `await byteSize` only AFTER the code that consumes the stream
+    (e.g. uploading to AWS S3, loading into memory, etc.)
+    */
+    const length = await byteLength;
+
+    results.push({ ...file, dest, originalFilename, newFilename, length});
+  }
+
+  console.log(results);
+
+  /*
+  OUTPUT:
+
+  {
+    "fields": { [fieldname: string]: string },
+    "files": [
+      {
+        "field": string,
+        "filename": string,
+        "mimeType": string,
+        "dest": string,
+        "originalFilename": string,
+        "newFilename": string,
+        "length": number
+      },
+      ...
+    ],
+  }
+  */
+});
+```
+
+## Essential: processing files sequentially (get SHA-256 hash)
+
+In this example, we iterate over all files sequentially, and process them one by one – the next file is accessed and processed only after the previous file is done.
+Processing here will be calculating a SHA-256 hash from the stream.
+
+```js
+// Full working example: `examples/sequential.mjs`
+
+import { createHash } from 'crypto';
+
+/*
+...
+Boilerplate code
+...
+*/
+const fileHashes = [];
+
+for await (const { stream, field, filename, byteLength, mimeType } of files) {
+  // `Hash` class: https://nodejs.org/api/crypto.html#class-hash
+  const hash = createHash('sha256');
+
+  // You can also use pipe(), or listen to 'data' events, or any other method,
+  // Regardless, you always have to consume the stream.
+  for await (const chunk of stream) {
+    hash.update(chunk);
+  }
+
+  fileHashes.push({
+    field,
+    filename,
+    mimeType,
+    // Remember to always `await` the `byteLength` promise AFTER the stream has been consumed!
+    length: await byteLength,
+    hash: hash.digest('hex'),
+  });
+}
+```
+
+## Advanced: processing files in batches (upload to AWS S3)
+
+In this example, we process files in batches of three – the next batch of files is accessed and processed only after the previous batch is done.
+Processing here will be uploading the files to AWS S3.
+
+```js
+// FULL WORKING EXAMPLE: `examples/batch-upload-s3.js`
+
+import { createHash } from 'crypto';
+
+// ... Boilerplate code ...
+
+const { fields, files } = await pechkin.parseFormData(req, {
+  maxTotalFileFieldCount: Infinity,
+  maxFileCountPerField: Infinity,
+  maxTotalFileCount: Infinity
+});
+
+const results = [];
+let batch = [];
+let i = 0;
+
+for await (const { filename: originalFilename, stream, field } of files) {
+  const key = `${i}-${originalFilename}`;
+
+  batch.push(
+    uploadFileToS3(key, stream) // Check implementation in 
+      .then(({ Location }) => ({ field, originalFilename, location: Location }))
+  );
+
+  if (batch.length === 3) {
+    results.push(await Promise.all(batch));
+    batch = []; // restart batch
+  }
+  
+  i++;
+}
+
+// Process the last batch
+results.push(await Promise.all(batch));
+
+console.log(results);
+/*
+OUTPUT:
+
+{
+  "fields": { [fieldname: string]: string },
+  "files": [
+    // batches of 3 files
+    [
+      {
+        [fieldname: string]: {
+          "field": string,
+          "originalFilename": string,
+          "location": string          // (AWS S3 URL)
+        },
+      },
+      ...
+    ],
+    ...
+  ],
+}
+*/
 ```
 
 ## Express – save to random temp location
 
-Pechkin **doesn't provide an Express middleware** out-of-the-box, but it's very easy to create one yourself.
+Pechkin doesn't provide an Express middleware out-of-the-box, but it's very easy to create one yourself.
+
+```js
+
+// FULL WORKING EXAMPLE: `examples/express.js`
+
+// ... Boilerplate code ...
+
+function pechkinFileUpload (config, fileFieldConfigOverride, busboyConfig) {
+  return async (req, res, next) => {
+    try {
+      const { fields, files } = await parseFormData(req, config, fileFieldConfigOverride, busboyConfig);
+
+      req.body = fields;
+      req.files = files;
+
+      return next();
+    } catch (err) {
+      return next(err);
+    }
+  }
+}
+
+app.post(
+  '/',
+  pechkinFileUpload(),
+  async (req, res) => {
+    const files = [];
+
+    for await (const { stream, field, filename, byteLength } of req.files) {
+      // Process files however you see fit...
+      // Here, streams are simply skipped
+      stream.resume();
+
+      files.push({ field, filename, length: await byteLength });
+    }
+
+    return res.json({ fields: req.body, files });
+  }
+);
+
+// ... Boilerplate code ...
+
+```
 
 # API
 
@@ -316,8 +479,8 @@ If a `storageEngine` (or `NoStorageEngine`) **was** provided in the config.
 - `processResult`: A `Promise` that resolves to the result of the `StorageEngine.save()` function. See `StorageEngine :: saving files`.
 
 TODO:
+- ❗️ Is a StorageEngine actually necessary? Write out examples and then decide whether to revert to the previous API.
 - Restrict allowed file fields
-- ? Optional storage engine
 - Examples for:
   - Express / Koa middleware examples
   - Concurrent / one-to-one / batch processing of files
