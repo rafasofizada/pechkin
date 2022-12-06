@@ -102,10 +102,10 @@ function throwFnFactory(busboyIterator: AsyncIterableIterator<BusboyFileEventPay
 
 function returnFnFactory(
   busboyIterator: AsyncIterableIterator<BusboyFileEventPayload>,
-  cleanupFn?: () => void,
+  cleanupFn?: () => Promise<unknown> | unknown,
 ) {
   return async function returnFn() {
-    cleanupFn?.();
+    await cleanupFn?.();
     return busboyIterator.return!();
   };
 }
