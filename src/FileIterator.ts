@@ -21,11 +21,11 @@ export function FileIterator(
   const pechkinIterableIterator = Object.create(
     busboyIterableIterator,
     {
-      next: { value: nextFnFactory(busboyIterableIterator, config, fileCounter, cleanupFn) },
-      throw: { value: throwFnFactory(busboyIterableIterator) },
-      return: { value: returnFnFactory(busboyIterableIterator, cleanupFn) },
+      next: { value: nextFnFactory(busboyIterableIterator, config, fileCounter, cleanupFn), writable: true },
+      throw: { value: throwFnFactory(busboyIterableIterator), writable: true },
+      return: { value: returnFnFactory(busboyIterableIterator, cleanupFn), writable: true },
       // for-await-of loop calls [Symbol.asyncIterator]
-      [Symbol.asyncIterator]: { value: () => busboyIterableIterator },
+      [Symbol.asyncIterator]: { value: () => busboyIterableIterator, writable: true },
     }
   );
 
