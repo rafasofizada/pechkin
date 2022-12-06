@@ -2,11 +2,12 @@
 
 Pechkin is a modern, asynchronous, flexible and configurable Node.js library for handling file uploads (i.e. `multipart/form-data` requests), written in TypeScript. It's optimized for complex usecases with fields and multiple files mixed together.
 
-# Highlights
-- **Fast** (based on [`busboy`](https://www.npmjs.com/package/busboy)).
+# Features
+- **Fast**, based on [`busboy`](https://www.npmjs.com/package/busboy).
+- **No temporary files are created, files are not loaded in memory.**
 - **Asynchronous**, `Promise`- and `AsyncIterator`-based. Fields and each file are available as `Promise`s as soon as they're parsed.
-- **Flexible**: you can provide your own storage implementation, use the `MemoryStorageEngine` and `DiskStorageEngine` included in the library, or provide _no implementation_ and handle the `files` `AsyncIterableIterator` yourself.
-- **Highly configurable**, with possibility to override (some) configuration options per-field.
+- **Flexible**: you don't need to provide any storage engines, file handlers, etc. Pechkin only provides the parsed data in form of streams and promises, and you can do whatever you want with it.
+- **Highly configurable**, with possibility to [override some configuration](#parameter-filefieldconfigoverride) options per-field (e.g. `maxFileByteLength: 1MB` for all files, but `5MB` for file fieldname `my_custom_video_file`).
 - **Expressive** TypeScript typings.
 - **Robust error handling**: you can be sure that all errors have been caught, handled, and underlying resources (streams) were properly handled/closed.
 - **Only 1 dependency** (busboy).
@@ -42,7 +43,7 @@ const pechkin = require('pechkin');
 const { parseFormData } = require('pechkin');
 ```
 
-## Essential: save to random temp location
+## [Essential: save to random temp location](./examples/basic-fs-temp.js)
 ### Files are processed sequentially
 
 ```js
@@ -97,7 +98,7 @@ http.createServer(async (req, res) => {
 });
 ```
 
-## Essential: processing files sequentially (get SHA-256 hash)
+## [Essential: processing files sequentially (get SHA-256 hash)](./examples/sequential.js)
 
 In this example, we iterate over all files sequentially, and process them one by one – the next file is accessed and processed only after the previous file is done.
 Processing here will be calculating a SHA-256 hash from the stream.
@@ -135,7 +136,7 @@ for await (const { stream, field, filename, byteLength, mimeType } of files) {
 }
 ```
 
-## Advanced: processing files in batches (upload to AWS S3)
+## [Advanced: processing files in batches (upload to AWS S3)](./examples/batch-upload-s3.js)
 
 In this example, we process files in batches of three – the next batch of files is accessed and processed only after the previous batch is done.
 Processing here will be uploading the files to AWS S3.
@@ -200,7 +201,7 @@ OUTPUT:
 */
 ```
 
-## Express – save to random temp location
+## [Express – save to random temp location](./examples/express.js)
 
 Pechkin doesn't provide an Express middleware out-of-the-box, but it's very easy to create one yourself.
 
@@ -255,16 +256,14 @@ Pechkin exposes only 1 function:
 
 **Type:**
 ```ts
-function parseFormData<TSave, TRemove>(
-  request:                      IncomingMessage,
-  config?:                      | Pechkin.Config
-                                | Pechkin.ConfigWStorageEngine<TSave, TRemov>,
-  fileFieldConfigOverride?:     Pechkin.FileFieldConfigOverride,
-  busboyConfig?:                Pechkin.BusboyConfig,
+function parseFormData(
+  request:                  IncomingMessage,
+  config?:                  Pechkin.Config
+  fileFieldConfigOverride?: Pechkin.FileFieldConfigOverride,
+  busboyConfig?:            Pechkin.BusboyConfig,
 ): Promise<{
   fields: Pechkin.Fields,
-  files:  | Pechkin.Files
-          | Pechkin.ProcessedFiles<S>,
+  files:  Pechkin.Files,
 }>
 ```
 
@@ -282,14 +281,12 @@ return a Promise, containing:
 
 ## Parameter: `config`
 
-Type: `Pechkin.Config` (without `storageEngine` value provided) or `Pechkin.ConfigWStorageEngine<TSave, TRemove>` (with `storageEngine` provided)
 All fields are optional. Numerical limits are **INCLUSIVE**.
 
 <!-- https://www.tablesgenerator.com/markdown_tables -->
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| storageEngine | `StorageEngine` | `NoStorageEngine` | The storage implementation to use. See `Files::Usage with StorageEngine` and `StorageEngine`. |
 | maxTotalHeaderPairs | number | 2000 | From Busboy: the max number of header key-value pairs to parse.<br>Default is same as node's http module. |
 | maxTotalPartCount | number | 110 (100 fields + 10 files) | The max number of parts (fields + files). |
 | maxFieldKeyByteLength | number | 100 bytes | The max byte length (each char is 1 byte) of a field name. |
@@ -332,7 +329,7 @@ await parseFormData(
 )
 ```
 
-Now, if you send a `FormData` request with following data _(represented as JSON, this is NOT a valid FormData request)_:
+Now, if you send a `FormData` request with following structure _(represented as JSON, this is NOT a valid FormData request)_:
 
 ```json5
 {
@@ -376,24 +373,23 @@ Now, if you send a `FormData` request with following data _(represented as JSON,
 **Type:** `Pechkin.BusboyConfig`, which equals to `Busboy.Config` (from [`busboy` package](https://github.com/mscdex/busboy#exports)) **without the `limits` property**.
 Limits passed to `busboy` are ignored, and instead the limits are set by `pechkin`'s `config` & `fileFieldConfigOverride` parameters are used.
 
-## Return value
+## Return value: `Files` AsyncIterator / AsyncIterable
 
 **Type:**
 ```ts
 Promise<{
-  fields: Pechkin.Fields,                 // Object with field names as keys: { [fieldName: string]: string }
-  files:  | Pechkin.Files                 // AsyncIterableIterator of Pechkin.File
-          | Pechkin.ProcessedFiles<TSave> // ! only if `config.storageEngine` was provided ! an AsyncIterableIterator of Pechkin.ProcessedFile<TSave>
+  fields: Pechkin.Fields,   // Object with field names as keys: { [fieldName: string]: string }
+  files:  Pechkin.Files     // AsyncIterableIterator of Pechkin.File
 }>
 ```
 
-`Pechkin.Files | Pechkin.ProcessedFiles<TSave>` is both an `AsyncIterator` and an `AsyncIterable`, so you can use it both as an iterator (calling `await files.next()`) and as an iterable (`for await (const file of files) { ... }`). It is recommended to use it only as an iterable in a `for-await-of` loop, as it's much easier and less error-prone to use.
+`Pechkin.Files` is both an `AsyncIterator` and an `AsyncIterable`, so you can use it both as an iterator (calling `await files.next()`) and as an iterable (`for await (const file of files) { ... }`). It is recommended to use it only as an iterable in a `for-await-of` loop, as it's much easier and less error-prone to use.
 
 ```ts
-Pechkin.Files | Pechkin.ProcessedFiles<TSave> = {
+type Files = {
   next: () => Promise<{
     done: boolean
-    value: Pechkin.File | Pechkin.ProcessedFile<TSave>, // depends on whether `config.storageEngine` was provided
+    value: Pechkin.File
   }>,
   return: () => Promise<void>,
   throw: (error: Error) => Promise<void>,
@@ -405,11 +401,19 @@ Pechkin.Files | Pechkin.ProcessedFiles<TSave> = {
 >
 > The `file.stream` should always be consumed, otherwise the request parsing will hang, and you might never get access to the next file. If you don't care about a particular file, you can simply do `file.stream.resume()`, but the stream should **always** be consumed.
 
-**Check the "Async iteration over files using `for-await-of`" example above.**
+### (Internal) error handling
+
+This section is for those who want to know how errors are handled internally. This is not necessary to use `pechkin`.
+
+- If an error occurs inside `next()` (for example, a file exceeded its `maxFileByteLength` limit), a cleanup function is called, which unpipes the request from the parser (busboy), the iterator is stopped, and the error is thrown.
+- If an error occurs inside the body of the `for-await-of` loop, `return()` is called, a cleanup function is called, and the iterator is stopped.
+- If an error occurs anywhere else inside Pechkin, `throw()` method is called, which either:
+  - Rejects the currently-awaited `next()` call,
+  - Or, if there is no `next()` call currently awaited, sets the next `next()` call to reject with the error.
+
+  Apart from that, the usual cleanup function is called, and the iterator is stopped.
 
 ## Type: Pechkin.File
-
-If no `storageEngine` (or `NoStorageEngine`) was provided in the config.
 
 ```ts
 {
@@ -452,41 +456,3 @@ If no `storageEngine` (or `NoStorageEngine`) was provided in the config.
   >
   > The `file.stream` should always be consumed, otherwise the request parsing will hang, and you might never get access to the next file. If you don't care about a particular file, you can simply do `file.stream.resume()`, but the stream should **always** be consumed.
 
-## Type: Pechkin.ProcessedFile<TSave>
-
-If a `storageEngine` (or `NoStorageEngine`) **was** provided in the config.
-
-```ts
-& Pechkin.File
-& (
-  | {
-    ignored: true;
-    stream: null;
-    processResult: undefined;
-  }
-  | {
-    ignored: false;
-    processResult: Promise<TSave>;
-  }
-)
-```
-
-`Pechkin.ProcessedFile<TSave>` is a `Pechkin.File` with the following additional properties:
-- `ignored`: `true` if the file was ignored, `false` otherwise. See `StorageEngine :: skipping files`.
-  - If `ignored === true`:
-    - `stream` is `null`.
-    - `processResult` is `undefined`.
-- `processResult`: A `Promise` that resolves to the result of the `StorageEngine.save()` function. See `StorageEngine :: saving files`.
-
-TODO:
-- ❗️ Is a StorageEngine actually necessary? Write out examples and then decide whether to revert to the previous API.
-- Restrict allowed file fields
-- Examples for:
-  - Express / Koa middleware examples
-  - Concurrent / one-to-one / batch processing of files
-- Test Node.js version compatibility
-- Test NPM library build
-- NoStorageEngine
-- DiskStorageEngine
-
-https://v4.chriskrycho.com/2018/how-to-bundle-typescript-type-definitions.html
