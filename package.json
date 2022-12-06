@@ -1,7 +1,10 @@
 {
   "name": "pechkin",
-  "version": "1.0.0",
-  "description": "Node.js package for asynchronously handling fields & files from `multipart/form-data` requests",
+  "version": "1.0.1",
+  "description": "A modern, asynchronous, flexible and configurable Node.js library for handling file uploads (i.e. multipart/form-data requests), written in TypeScript.",
+  "homepage": "https://github.com/rafasofizada/pechkin#readme",
+  "repository": "github:rafasofizada/pechkin",
+  "keywords": ["multipart", "form-data", "file", "uploads", "forms", "files"],
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/index.d.ts",
@@ -20,7 +23,8 @@
     "postpublish": "npm run clean",
     "test": "vitest"
   },
-  "author": "Rafael Sofi-zada <rafa.sofizadeh@gmail.com>",
+  "author": "Rafael Sofi-zada",
+  "email": "rafa.sofizadeh@gmail.com",
   "license": "MIT",
   "dependencies": {
     "busboy": "^1.6.0"
