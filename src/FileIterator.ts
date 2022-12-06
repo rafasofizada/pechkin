@@ -52,7 +52,7 @@ function nextFnFactory(
   busboyIterator: AsyncIterableIterator<BusboyFileEventPayload>,
   fileFieldConfig: Internal.FileFieldConfig,
   fileCounter: FileCounter,
-  cleanupFn?: () => void,
+  onError?: () => void,
 ) {
   return async function nextFn(): Promise<IteratorResult<Internal.File, undefined>> {
     try {
@@ -76,7 +76,7 @@ function nextFnFactory(
 
       In all cases, we want to rethrow the error.
       */
-      cleanupFn?.();
+      onError?.();
       throw error;
     }
   };
