@@ -44,7 +44,7 @@ const { parseFormData } = require('pechkin');
 ```
 
 ## [Essential: save to random temp location](./examples/basic-fs-temp.js)
-### Files are processed sequentially
+**Files are processed sequentially.**
 
 ```js
 
@@ -377,15 +377,6 @@ Limits passed to `busboy` are ignored, and instead the limits are set by `pechki
 
 **Type:**
 ```ts
-Promise<{
-  fields: Pechkin.Fields,   // Object with field names as keys: { [fieldName: string]: string }
-  files:  Pechkin.Files     // AsyncIterableIterator of Pechkin.File
-}>
-```
-
-`Pechkin.Files` is both an `AsyncIterator` and an `AsyncIterable`, so you can use it both as an iterator (calling `await files.next()`) and as an iterable (`for await (const file of files) { ... }`). It is recommended to use it only as an iterable in a `for-await-of` loop, as it's much easier and less error-prone to use.
-
-```ts
 type Files = {
   next: () => Promise<{
     done: boolean
@@ -396,6 +387,8 @@ type Files = {
   [Symbol.asyncIterator]: () => this
 }
 ```
+
+`Pechkin.Files` is both an `AsyncIterator` and an `AsyncIterable`, so you can use it both as an iterator (calling `await files.next()`) and as an iterable (`for await (const file of files) { ... }`). It is recommended to use it only as an iterable in a `for-await-of` loop, as it's much easier and less error-prone to use.
 
 > ❗️ **Very important note on iteration:**
 >
