@@ -25,7 +25,7 @@ export function FileIterator(
       throw: { value: throwFnFactory(busboyIterableIterator), writable: true },
       return: { value: returnFnFactory(busboyIterableIterator, cleanupFn), writable: true },
       // for-await-of loop calls [Symbol.asyncIterator]
-      [Symbol.asyncIterator]: { value: () => busboyIterableIterator, writable: true },
+      [Symbol.asyncIterator]: { value: () => pechkinIterableIterator, writable: true },
     }
   );
 
@@ -52,18 +52,18 @@ function nextFnFactory(
   busboyIterator: AsyncIterableIterator<BusboyFileEventPayload>,
   fileFieldConfig: Internal.FileFieldConfig,
   fileCounter: FileCounter,
-  onError?: () => void,
+  onError?: () => Promise<unknown> | unknown,
 ) {
   return async function nextFn(): Promise<IteratorResult<Internal.File, undefined>> {
     try {
       const iterElement = await busboyIterator.next();
-      // `=== true` to narrow `boolean | undefined` to `boolean`
-      return iterElement.done === true
-        ? iterElement
-        : {
-          done: false,
-          value: processBusboyFileEventPayload(iterElement.value, fileFieldConfig, fileCounter)
-        };
+
+      if (iterElement.done) return iterElement;
+
+      return {
+        done: false,
+        value: processBusboyFileEventPayload(iterElement.value, fileFieldConfig, fileCounter)
+      };
     } catch (error) {
       /*
       Three possibilities of ending up here:
@@ -71,8 +71,8 @@ function nextFnFactory(
       2. busboyAsyncIterator.next() encountered an error and threw "naturally"
       3. processBusboyFileEventPayload() threw (which shouldn't happen but whatever)
 
-      In case 1, cleanupFn() has already been run in throw(), but still it wouldn't hurt to run it again.
-      In case 2 & 3, cleanupFn() hasn't been run ever, so we run it here.
+      In case 1, onError() has already been run in throw(), but still it wouldn't hurt to run it again.
+      In case 2 & 3, onError() hasn't been run ever, so we run it here.
 
       In all cases, we want to rethrow the error.
       */
