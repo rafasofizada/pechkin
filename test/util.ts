@@ -8,6 +8,10 @@ import { parseFormData, Pechkin } from '../src';
 import { Internal } from '../src/types';
 import { FileByteLengthInfo } from '../src/ByteLengthTruncateStream';
 
+process.on("uncaughtException", (error) => {
+  console.log('UNCAUGHT 😱', error);
+});
+
 export type TestFile = Omit<Internal.File, 'byteLength' | 'stream'> & { content: string | null; byteLength: FileByteLengthInfo; };
 export type TestFormDataFields<S extends string = string> = `${S}__file` | `${S}__field`;
 export type TestFormDataPayload<F extends TestFormDataFields = TestFormDataFields> = Record<F, string[]>;
