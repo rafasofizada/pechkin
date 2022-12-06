@@ -1,3 +1,5 @@
+<p align="middle"><img src="https://user-images.githubusercontent.com/19387589/205964030-6f8511d0-dc1a-4939-bda7-2e078e1438de.jpeg" width="200" /></p>
+
 # Pechkin
 
 Pechkin is a modern, asynchronous, flexible and configurable Node.js library for handling file uploads (i.e. `multipart/form-data` requests), written in TypeScript. It's optimized for complex usecases with fields and multiple files mixed together.
