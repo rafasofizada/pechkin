@@ -211,7 +211,7 @@ OUTPUT:
 */
 ```
 
-## [Express – save to random temp location](./examples/express.js)
+## [Express](./examples/express.js)
 
 Pechkin doesn't provide an Express middleware out-of-the-box, but it's very easy to create one yourself.
 
