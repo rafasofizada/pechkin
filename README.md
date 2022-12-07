@@ -262,7 +262,7 @@ app.post(
 
 Pechkin exposes only 1 function:
 
-## `Pechkin.parseFormData()`
+## `parseFormData()`
 
 **Type:**
 ```ts
@@ -398,7 +398,7 @@ type Files = {
 }
 ```
 
-`Pechkin.Files` is both an `AsyncIterator` and an `AsyncIterable`, so you can use it both as an iterator (calling `await files.next()`) and as an iterable (`for await (const file of files) { ... }`). It is recommended to use it only as an iterable in a `for-await-of` loop, as it's much easier and less error-prone to use.
+`Files` is both an `AsyncIterator` and an `AsyncIterable`, so you can use it both as an iterator (calling `await files.next()`) and as an iterable (`for await (const file of files) { ... }`). It is recommended to use it only as an iterable in a `for-await-of` loop, as it's much easier and less error-prone to use.
 
 > ❗️ **Very important note on iteration:**
 >
@@ -416,7 +416,7 @@ This section is for those who want to know how errors are handled internally. Th
 
   Apart from that, the usual cleanup function is called, and the iterator is stopped.
 
-## Type: Pechkin.File
+## Type: `File`
 
 ```ts
 {
