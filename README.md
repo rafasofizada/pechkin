@@ -24,6 +24,14 @@ Pechkin is a modern, asynchronous, flexible and configurable Node.js library for
 
 # Examples / Usage
 
+## TL;DR
+
+- All fields in the `FormData` request should come before any files. Any fields submitted after the first file are lost.
+- `parseFormData()` returns a `Promise` that resolves when all fields are parsed, and the first file is encountered (or the request ended).
+- The promise contains a populated `fields` object, and a `files` `AsyncIterator`/`AsyncIterable`.
+- Asynchronously iterate over the `files` using the `for-await-of` loop or using the `next()` method.
+- File streams should always be consumed (e.g. by the code inside `for-await-of` loop, or before the subsequent `next()` call). Otherwise the request parsing will stall.
+
 ## FOR FULL WORKING EXAMPLES, SEE THE `examples/` FOLDER 
 
 
