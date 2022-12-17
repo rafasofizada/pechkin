@@ -2,7 +2,31 @@
 
 # Pechkin
 
+[Go to Real Cool Heading section](#features)
+
 Pechkin is a modern, asynchronous, flexible and configurable Node.js library for handling file uploads (i.e. `multipart/form-data` requests), written in TypeScript. It's optimized for complex usecases with fields and multiple files mixed together.
+
+<details><summary>Table of Contents</summary>
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Examples / Usage](#examples--usage)
+  - [TL;DR](#tldr)
+  - [Importing](#importing)
+  - [Save to random temp location](#essential-save-to-random-temp-location)
+  - [Processing files sequentially (get SHA-256 hash)](#essential-processing-files-sequentially-get-sha-256-hash)
+  - [Processing files in batches (upload to AWS S3)](#advanced-processing-files-in-batches-upload-to-aws-s3)
+  - [Express](#express)
+- [API](#api)
+  - [Function: `parseFormData()`](#parseformdata)
+  - [Parameter: `config`](#parameter-config)
+  - [Parameter: `fileFieldConfigOverride`](#parameter-filefieldconfigoverride)
+  - [Return value: `Files` AsyncIterator / AsyncIterable](#return-value-files-asynciterator--asynciterable)
+  - [(Internal) Error Handling](#internal-error-handling)
+  - [Type: `File`](#type-file)
+
+</details>
 
 # Features
 - **Fast**, based on [`busboy`](https://www.npmjs.com/package/busboy).
@@ -35,7 +59,7 @@ Pechkin is a modern, asynchronous, flexible and configurable Node.js library for
 ## FOR FULL WORKING EXAMPLES, SEE THE `examples/` FOLDER 
 
 
-**Importing**
+### Importing
 
 The package provides both CommonJS and ESM modules.
 
