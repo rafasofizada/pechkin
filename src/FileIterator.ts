@@ -34,12 +34,7 @@ export function FileIterator(
   from the Node.js source code for on(), the returned object always contains them.
   */
   parser
-    /*
-    The async iterator returned by events.on() apparently doesn't conform to the
-    Iterator protocol, as throw() rejects with an error, when by protocol it should
-    reject with an IteratorResult.
-    https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols.
-    */
+    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols.
     .once('partsLimit', () => pechkinIterableIterator.throw!(new TotalLimitError("maxTotalPartCount")))
     .once('filesLimit', () => pechkinIterableIterator.throw!(new TotalLimitError("maxTotalFileCount")))
     .once('error', (error) => pechkinIterableIterator.throw!(error))
@@ -76,6 +71,8 @@ function nextFnFactory(
 
       In all cases, we want to rethrow the error.
       */
+      // TODO: if onError can return a promise, we should await it?
+      // TODO: Pass error to onError?
       onError?.();
       throw error;
     }
@@ -89,6 +86,7 @@ function throwFnFactory(busboyIterator: AsyncIterableIterator<BusboyFileEventPay
   the LAST error passed will be the one that is thrown.
 
   `thrown` flag is needed to provide idempotency.
+  TODO: Test the effect of `thrown` flag on error order.
   */
   let thrown = false;
 
@@ -120,6 +118,10 @@ function processBusboyFileEventPayload(
 
   const lengthLimiter = new ByteLengthTruncateStream(maxFileByteLength, abortOnFileByteLengthLimit, field);
   const truncatedStream = stream.pipe(lengthLimiter);
+
+  // stream.on('error', (error) => {
+  //   truncatedStream.destroy(error);
+  // });
 
   return {
     field,
