@@ -22,3 +22,6 @@ package-lock.json
 
 # Coveralls
 coverage
+
+# Misc
+/experiments
