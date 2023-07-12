@@ -1,8 +1,8 @@
 import busboy from "busboy";
 import { on, Readable } from "stream";
 
-import { ByteLengthTruncateStream } from "./ByteLengthTruncateStream";
-import { TotalLimitError, FieldLimitError } from "./error";
+import { ByteLengthTruncateStream, FileByteLengthInfo } from "./ByteLengthTruncateStream";
+import { TotalLimitError } from "./error";
 import { FileCounter } from "./FileCounter";
 import { Internal } from "./types";
 
@@ -118,21 +118,55 @@ function processBusboyFileEventPayload(
   // FileCounter may throw, it's a Proxy!
   fileCounter[field] += 1;
 
-  const truncatedStream = stream.pipe(new ByteLengthTruncateStream(maxFileByteLength));
+  const lengthLimiter = new ByteLengthTruncateStream(maxFileByteLength, abortOnFileByteLengthLimit, field);
+  const truncatedStream = stream.pipe(lengthLimiter);
 
   return {
     field,
     stream: truncatedStream,
-    byteLength: truncatedStream.byteLengthEvent
-      .then((payload) => {
-        if (payload.truncated && abortOnFileByteLengthLimit) {
-          throw new FieldLimitError("maxFileByteLength", field, maxFileByteLength);
-        }
-
-        return payload;
-      }),
+    // Why getter and not a property?
+    // So that byteLength() is called lazily. byteLength() has a side effect: it sets
+    // the 'error' event listener on the stream. If we 'prematurely' set the 'error' event listener
+    // as a part of byteLength property, but don't error-handle byteLength, we will get silenced errors.
+    // https://github.com/rafasofizada/pechkin/issues/2
+    get byteLength() {
+      return byteLength(truncatedStream)
+    },
     ...info,
   };
+}
+
+export function byteLength(stream: ByteLengthTruncateStream): Promise<FileByteLengthInfo> {
+  return new Promise((resolve, reject) => {
+    let eventBeforeCloseEmitted = false;
+
+    const payload = (stream: ByteLengthTruncateStream) => ({
+      readBytes: stream.bytesWritten,
+      truncated: stream.truncated,
+    });
+
+    stream 
+      .on('error', (error) => {
+        eventBeforeCloseEmitted = true;
+        return reject(error);
+      })
+      .on('close', () => {
+        if (!eventBeforeCloseEmitted) {
+          console.warn(`Pechkin::ByteLengthLimitStream closed, without 'finish' & 'byteLength' or 'error' events
+firing beforehand. This should not happen. Probable cause: stream was destroy()'ed.`);
+        }
+
+        resolve(payload(stream));
+      })
+      .on('finish', () => {
+        eventBeforeCloseEmitted = true;
+        return resolve({
+          readBytes: stream.bytesWritten,
+          truncated: stream.truncated,
+        });
+      })
+      .on('byteLength', () => resolve(payload(stream)));
+  });
 }
 
 /*

@@ -1,34 +1,46 @@
-import { Transform, TransformCallback } from 'stream';
-
-import { SafeEventEmitter } from './SafeEventEmitter';
+import { Readable, Transform, TransformCallback } from 'stream';
+import { FieldLimitError } from './error';
 
 export class ByteLengthTruncateStream extends Transform {
-  public readonly byteLengthEvent: Promise<FileByteLengthInfo>;
+  private _bytesWritten: number = 0;
+  private _truncated: boolean = false;
 
-  private readonly ee: SafeEventEmitter<ByteLengthStreamEvents>;
-  private truncated: boolean = false;
-  private readBytes: number = 0;
+  get bytesWritten(): number {
+    return this._bytesWritten;
+  }
 
-  constructor(private readonly maxByteLength: number) {
+  get truncated(): boolean {
+    return this._truncated;
+  }
+
+  public on(event: 'byteLength', listener: (bytesWritten: number) => void): this;
+  public on(event: 'close', listener: () => void): this;
+  public on(event: 'data', listener: (chunk: any) => void): this;
+  public on(event: 'end', listener: () => void): this;
+  public on(event: 'error', listener: (err: Error) => void): this;
+  public on(event: 'pause', listener: () => void): this;
+  public on(event: 'readable', listener: () => void): this;
+  public on(event: 'resume', listener: () => void): this;
+  public on(event: 'close', listener: () => void): this;
+  public on(event: 'drain', listener: () => void): this;
+  public on(event: 'finish', listener: () => void): this;
+  public on(event: 'pipe', listener: (src: Readable) => void): this;
+  public on(event: 'unpipe', listener: (src: Readable) => void): this;
+  public on(event: string | symbol, listener: (...args: any[]) => void): this {
+    return super.on(event, listener);
+  }
+
+  constructor(
+    private readonly limit: number,
+    private readonly abortOnFileByteLengthLimit: boolean,
+    private readonly field: string,
+  ) {
     super();
-
-    this.ee = new SafeEventEmitter();
-
-    // Snapshot state on 'byteLength'. `this.truncated` and `this.readBytes` are primitives, so we don't need to worry about
-    // them changing after the event is emitted.
-    this.byteLengthEvent = new Promise((resolve) => {
-      this.ee.on('byteLength', () => {
-        return resolve({
-          truncated: this.truncated,
-          readBytes: this.readBytes,
-        });
-      });
-    });
   }
 
   // encoding = 'buffer': https://nodejs.org/api/stream.html#transform_transformchunk-encoding-callback
   public _transform(chunk: Buffer | string, encoding: BufferEncoding | 'buffer', callback: TransformCallback): void {
-    if (this.truncated) {
+    if (this._truncated) {
       return callback();
     }
 
@@ -36,32 +48,33 @@ export class ByteLengthTruncateStream extends Transform {
       ? chunk as Buffer
       : Buffer.from(chunk as string, encoding);
     
-    if (this.readBytes + chunkBuffer.byteLength > this.maxByteLength) {
-      const truncatedChunk = chunkBuffer.subarray(0, this.maxByteLength - this.readBytes);
-      this.readBytes += truncatedChunk.byteLength;
-      this.truncated = true;
+    if (this._bytesWritten + chunkBuffer.byteLength > this.limit) {
+      const truncatedChunk = chunkBuffer.subarray(0, this.limit - this._bytesWritten);
+      this._bytesWritten += truncatedChunk.byteLength;
+      this.push(truncatedChunk);
 
-      this.ee.emit('byteLength', undefined);
-
-      return callback(null, truncatedChunk);
+      if (this.abortOnFileByteLengthLimit) {
+        return callback(new FieldLimitError('maxFileByteLength', this.field!, this.limit));
+      } else {
+        this._truncated = true;
+        return callback();
+      }
+    } else {
+      this.push(chunkBuffer);
+      this._bytesWritten += chunkBuffer.byteLength;
+      
+      return callback();
     }
-
-    this.readBytes += chunkBuffer.byteLength;
-    return callback(null, chunk);
   }
 
   public _flush(callback: TransformCallback): void {
-    this.ee.emit('byteLength', undefined);
+    this.emit('byteLength', this._bytesWritten);
 
     return callback();
   }
 }
 
 export type FileByteLengthInfo = {
-  truncated: boolean;
   readBytes: number;
-};
-
-type ByteLengthStreamEvents = {
-  byteLength: void;
+  truncated: boolean;
 };
