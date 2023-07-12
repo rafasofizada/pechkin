@@ -1,5 +1,6 @@
-import { expect, describe, it } from 'vitest';
-import { createParseFormData, filesTest  } from './util';
+import { describe, expect, it } from 'vitest';
+import { createParseFormData, filesTest } from './util';
+import { FieldLimitError } from '../src';
 
 // TODO: maxFileCountPerField
 // TODO: maxTotalFileFieldCount
@@ -115,38 +116,75 @@ describe('Files', () => {
         });
       });
   
-      // TODO: Actually test if error is thrown
-      // describe('abortOnFileByteLengthLimit = true', () => {
-      //   it('multiple files', async () => {
-      //     const { files } = await createParseFormData({
-      //       noTruncation__file: ['no trunc'],
-      //       truncateSomeAbort__file: ['no trunc', 'truncated 0 0'],
-      //       unreachable__file: ['truncated 1 0'],
-      //     }, {
-      //       base: {
-      //         abortOnFileByteLengthLimit: true,
-      //         maxFileByteLength: 9,
-      //       },
-      //     });
-  
-      //     // `truncateAbort__file` should be omitted, because an error is thrown
-      //     // (there's a try/catch in createParseFormData that silences the error),
-      //     // `unreachable_file` is never reached,
-      //     // so we expect only the `dontTruncate_file`
-      //     expect(files).toEqual([
-      //       expect.objectContaining({
-      //         field: 'noTruncation',
-      //         content: 'no trunc',
-      //         byteLength: { readBytes: 8, truncated: false },
-      //       }),
-      //       expect.objectContaining({
-      //         field: 'truncateSomeAbort',
-      //         content: 'no trunc',
-      //         byteLength: { readBytes: 8, truncated: false },
-      //       }),
-      //     ]);
-      //   });
-      // });
+      describe('abortOnFileByteLengthLimit = true', () => {
+        it('single file', () => {
+          const maxFileByteLength = 1;
+
+          return expect(
+            createParseFormData(
+              { throw__file: ['should throw'] },
+              {
+                abortOnFileByteLengthLimit: true,
+                maxFileByteLength,
+              }
+            )
+          ).rejects.toThrow(new FieldLimitError('maxFileByteLength', 'throw', maxFileByteLength));
+        });
+
+        it('multiple files, single file field', () => {
+          const maxFileByteLength = 16;
+
+          return expect(
+            createParseFormData(
+              { throw__file: ['should not throw', 'this now should throw definitely'] },
+              {
+                abortOnFileByteLengthLimit: true,
+                maxFileByteLength,
+              }
+            )
+          ).rejects.toThrow(new FieldLimitError('maxFileByteLength', 'throw', maxFileByteLength));
+        });
+
+        it('multiple files, multiple file fields', () => {
+          const maxFileByteLength = 16;
+
+          return expect(
+            createParseFormData(
+              {
+                dontThrow__file: ['should not throw'],
+                throw__file: ['should not throw', 'this now should throw definitely'],
+              },
+              {
+                abortOnFileByteLengthLimit: true,
+                maxFileByteLength,
+              }
+            )
+          ).rejects.toThrow(new FieldLimitError('maxFileByteLength', 'throw', maxFileByteLength));
+        });
+
+        it('multiple files, w/ field override', () => {
+          const maxFileByteLength = 16;
+
+          return expect(
+            createParseFormData(
+              {
+                dontThrow__file: ['should not throw'],
+                dontThrowYet__file: ['should not throw', 'this too should not throw'],
+                throw__file: ['should not throw', 'this now should throw definitely'],
+              },
+              {
+                abortOnFileByteLengthLimit: true,
+                maxFileByteLength,
+              },
+              {
+                dontThrowYet__file: {
+                  maxFileByteLength: 25,
+                },
+              }
+            )
+          ).rejects.toThrow(new FieldLimitError('maxFileByteLength', 'throw', maxFileByteLength));
+        });
     });
+  });
   });
 });
