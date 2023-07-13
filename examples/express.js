@@ -26,12 +26,12 @@ app.post(
   async (req, res) => {
     const files = [];
 
-    for await (const { stream, field, filename, byteLength } of req.files) {
+    for await (const { stream, field, filename } of req.files) {
       // Process files however you see fit...
       // Here, streams are simply skipped
       stream.resume();
 
-      files.push({ field, filename, length: await byteLength });
+      files.push({ field, filename });
     }
 
     return res.json({ fields: req.body, files });

@@ -6,13 +6,15 @@ import { expect } from 'vitest';
 
 import { parseFormData, Pechkin } from '../src';
 import { Internal } from '../src/types';
-import { FileByteLengthInfo } from '../src/ByteLengthTruncateStream';
 
-process.on("uncaughtException", (error) => {
-  console.log('UNCAUGHT 😱', error);
-});
-
-export type TestFile = Omit<Internal.File, 'byteLength' | 'stream'> & { content: string | null; byteLength: FileByteLengthInfo; };
+export type TestFile = Omit<Internal.File, 'stream'> & {
+  content: string | null;
+  byteLength: {
+    bytesWritten: number;
+    bytesRead: number;
+    truncated: boolean;
+  };
+};
 export type TestFormDataFields<S extends string = string> = `${S}__file` | `${S}__field`;
 export type TestFormDataPayload<F extends TestFormDataFields = TestFormDataFields> = Record<F, string[]>;
 export type TestFormDataParseResult = { fields: Internal.Fields, files: TestFile[] };
@@ -55,13 +57,15 @@ export async function createParseFormData<F extends TestFormDataFields>(
   
   const results = [] as TestFile[];
 
-  for await (const { stream, byteLength, ...restFile } of files) {
+  for await (const { stream, ...restFile } of files) {
     const result = {
       ...restFile,
-      content: stream
-        ? await streamToString(stream)
-        : null,
-      byteLength: await byteLength,
+      content: await streamToString(stream),
+      byteLength: {
+        bytesWritten: stream.bytesWritten,
+        bytesRead: stream.bytesRead,
+        truncated: stream.truncated,
+      },
     };
 
     results.push(result);

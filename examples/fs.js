@@ -3,8 +3,11 @@ const http = require('http');
 const os = require('os');
 const path = require('path');
 
-// If 'Pechkin' is installed, you can simply "require('pechkin')"
-// or import * as pechkin from 'pechkin';
+// If 'pechkin' is installed as an NPM package,
+// you can simply `const pechkin = require('pechkin')`
+// or `import * as pechkin from 'pechkin';`
+
+// Use the dist/esm distribution if you're using ESM modules (import)
 const pechkin = require('../dist/cjs');
 
 http
@@ -18,17 +21,29 @@ http
 
       const results = [];
 
-      for await (const { filename: originalFilename, byteLength, stream, ...file } of files) {
+      for await (const { filename: originalFilename, stream, ...file } of files) {
         const newFilename = `${Math.round(Math.random() * 1000)}-${originalFilename}`;
         const dest = path.join(os.tmpdir(), newFilename);
 
+        // Pipe the stream to a file
+        // The stream will start to be consumed after the current block of code
+        // finishes executing...
         stream.pipe(fs.createWriteStream(dest));
-        /*
-        `byteSize` resolves only after the entire `file.stream` has been consumed
-        You should `await byteSize` only AFTER the code that consumes the stream
-        (e.g. uploading to AWS S3, loading into memory, etc.)
-        */
-        const length = await byteLength;
+        
+        // ...which allows us to set up event handlers for the stream and wrap
+        // the whole thing in a Promise, so that we can get the stream's length.
+        const length = await new Promise((resolve, reject) => {
+          stream
+            // `stream` is an instance of Transform, which is a Duplex stream,
+            // which means you can listen to both 'end' (Readable side)
+            // and 'finish' (Writable side) events.
+            .on('end', () => resolve(stream.bytesWritten))
+            .on('finish', () => resolve(stream.bytesWritten))
+            // You can either reject the Promise and handle the Promise rejection
+            // using .catch() or await + try-catch block, or you can directly
+            // somehow handle the error in the 'error' event handler.
+            .on('error', reject);
+        })
 
         results.push({ ...file, dest, originalFilename, newFilename, length});
       }

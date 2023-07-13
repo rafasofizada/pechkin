@@ -1,15 +1,12 @@
 import * as busboy from "busboy";
-import { Readable } from "stream";
-
-import { FileByteLengthInfo } from "./ByteLengthTruncateStream";
+import { ByteLengthTruncateStream } from "./ByteLengthTruncateStream";
 
 export namespace Internal {
   export type Fields = Record<string, string>;
 
   export type File = busboy.FileInfo & {
     field: string;
-    byteLength: Promise<FileByteLengthInfo>;
-    stream: Readable;
+    stream: ByteLengthTruncateStream;
   };
 
   export type Files = Required<AsyncIterableIterator<File>>;

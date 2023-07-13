@@ -44,37 +44,37 @@ describe('Files', () => {
             expect.objectContaining({
               field: 'truncateAll',
               content: 'truncated',
-              byteLength: { truncated: true, readBytes: 9 },
+              byteLength: { truncated: true, bytesWritten: 9, bytesRead: 13 },
             }),
             expect.objectContaining({
               field: 'truncateAll',
               content: 'truncated',
-              byteLength: { truncated: true, readBytes: 9 },
+              byteLength: { truncated: true, bytesWritten: 9, bytesRead: 13 },
             }),
             expect.objectContaining({
               field: 'truncateSome',
               content: 'not trunc',
-              byteLength: { truncated: false, readBytes: 9 },
+              byteLength: { truncated: false, bytesWritten: 9, bytesRead: 9 },
             }),
             expect.objectContaining({
               field: 'truncateSome',
               content: 'truncated',
-              byteLength: { truncated: true, readBytes: 9 },
+              byteLength: { truncated: true, bytesWritten: 9, bytesRead: 13 },
             }),
             expect.objectContaining({
               field: 'truncateSingle',
               content: 'truncated',
-              byteLength: { truncated: true, readBytes: 9 },
+              byteLength: { truncated: true, bytesWritten: 9, bytesRead: 13 },
             }),
             expect.objectContaining({
               field: 'noTruncation',
               content: 'not trunc',
-              byteLength: { truncated: false, readBytes: 9 },
+              byteLength: { truncated: false, bytesWritten: 9, bytesRead: 9 },
             }),
             expect.objectContaining({
               field: 'noTruncation',
               content: 'no trunca',
-              byteLength: { truncated: false, readBytes: 9 },
+              byteLength: { truncated: false, bytesWritten: 9, bytesRead: 9 },
             }),
           ]);
         });
@@ -100,17 +100,17 @@ describe('Files', () => {
             expect.objectContaining({
               field: 'dontTruncate',
               content: 'should not be truncated',
-              byteLength: { truncated: false, readBytes: 23 },
+              byteLength: { truncated: false, bytesWritten: 23, bytesRead: 23 },
             }),
             expect.objectContaining({
               field: 'truncate',
               content: 'should be',
-              byteLength: { truncated: true, readBytes: 9 },
+              byteLength: { truncated: true, bytesWritten: 9, bytesRead: 19 },
             }),
             expect.objectContaining({
               field: 'truncateLonger',
               content: 'should be trunc',
-              byteLength: { truncated: true, readBytes: 15 },
+              byteLength: { truncated: true, bytesWritten: 15, bytesRead: 19 },
             }),
           ]);
         });
