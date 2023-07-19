@@ -128,49 +128,6 @@ http.createServer(async (req, res) => {
 });
 ```
 
-## Processing files sequentially (get SHA-256 hash)
-
-In this example, we iterate over all files sequentially, and process them one by one – the next file is accessed and processed only after the previous file is done.
-Processing here will be calculating a SHA-256 hash from the stream.
-
-```js
-// Full working example: `examples/sequential.mjs`
-
-import { createHash } from 'crypto';
-
-/*
-...
-Boilerplate code
-...
-*/
-const fileHashes = [];
-
-for await (const { stream, field, filename, mimeType } of files) {
-  // `Hash` class: https://nodejs.org/api/crypto.html#class-hash
-  const hash = createHash('sha256');
-
-  // You can also use pipe(), or listen to 'data' events, or any other method,
-  // Regardless, you always have to consume the stream.
-  for await (const chunk of stream) {
-    hash.update(chunk);
-  }
-
-  fileHashes.push({
-    field,
-    filename,
-    mimeType,
-    // Here, we expect the stream to be fully consumed by `for-await-of` loop,
-    // so there's no need to wait for the 'end'/'finish' events to obtain the correct
-    // byte length of the stream – bytesWritten already reached its final value.
-
-    // This is in contrast with the previous file system example, where we
-    // need to wait for the 'end'/'finish' events to obtain the correct
-    // byte length of the stream.
-    length: stream.bytesWritten,
-    hash: hash.digest('hex'),
-  });
-}
-```
 
 ## [Express](./examples/express.js)
 
