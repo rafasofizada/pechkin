@@ -85,6 +85,10 @@ http.createServer(async (req, res) => {
     // ...which allows us to set up event handlers for the stream and wrap
     // the whole thing in a Promise, so that we can get the stream's length.
     const length = await new Promise((resolve, reject) => {
+      // Since Node v15.0.0, you can use `stream.finished()`, instead of
+      // manually setting up event listeners and resolving/rejecting inside
+      // them.
+      // https://nodejs.org/api/stream.html#streamfinishedstream-options
       stream
         // `stream` is an instance of Transform, which is a Duplex stream,
         // which means you can listen to both 'end' (Readable side)
