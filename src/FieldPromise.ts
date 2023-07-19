@@ -3,7 +3,7 @@ import busboy from "busboy";
 import { Internal } from "./types";
 import { FieldLimitError, TotalLimitError } from "./error";
 
-export function FieldsPromise(parser: busboy.Busboy): Promise<Internal.Fields> {
+export function FieldsPromise(parser: busboy.Busboy, cleanupFn: () => void): Promise<Internal.Fields> {
   return new Promise<Internal.Fields>((resolve, reject) => {
     const fields: Internal.Fields = {};
 
@@ -24,5 +24,8 @@ export function FieldsPromise(parser: busboy.Busboy): Promise<Internal.Fields> {
       .once('partsLimit', () => reject(new TotalLimitError('maxTotalPartCount')))
       .once('fieldsLimit', () => reject(new TotalLimitError("maxTotalFieldCount")))
       .once('error', (error: Error) => reject(error));
+  }).catch((error) => {
+    cleanupFn();
+    throw error;
   });
 }

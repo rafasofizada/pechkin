@@ -39,17 +39,14 @@ export async function parseFormData(
     request.unpipe(parser);
   };
 
-  const fields = FieldsPromise(parser);
+  const fields = FieldsPromise(parser, cleanupFn);
   const files = FileIterator(parser, finalConfig, cleanupFn);
   
   // TODO: Test if throws if request is not multipart/form-data
   request.pipe(parser);
 
   return {
-    fields: await fields.catch((error) => {
-      cleanupFn();
-      throw error;
-    }),
+    fields: await fields,
     files
   };
 }
