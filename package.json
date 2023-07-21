@@ -1,6 +1,6 @@
 {
   "name": "pechkin",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "A modern, asynchronous, flexible and configurable Node.js library for handling file uploads (i.e. multipart/form-data requests), written in TypeScript.",
   "homepage": "https://github.com/rafasofizada/pechkin#readme",
   "repository": {
