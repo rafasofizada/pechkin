@@ -16,7 +16,7 @@ Pechkin is a modern, asynchronous, flexible and configurable Node.js library for
 
 # [CHANGELOG](./CHANGELOG.md)
 
-Check for tips on migration to v2.0.0.
+Check for tips on migration from v1.x to v2.x.
 
 # Requirements
 
