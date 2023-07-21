@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.1.0] - 2023-07-21
 
+### Major commits:
+- [req.resume() in cleanupFn()](https://github.com/rafasofizada/pechkin/commit/3942aecc229fa525360977fba601f7fd850e00a9)
+- [Comments on design decision](https://github.com/rafasofizada/pechkin/commit/e5ef645b0fe34757f1fca48ff278b43d3ef50524)
+
 ### Changed
 - Cleanup process on request errors. Previously, only `request.unpipe()` was called on error. Now, an approach inspired by Multer source code was taken:
   - Unpipe the request stream from the parser
