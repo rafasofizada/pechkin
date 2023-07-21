@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2023-07-21
+
+### Changed
+- Cleanup process on request errors. Previously, only `request.unpipe()` was called on error. Now, an approach inspired by Multer source code was taken:
+  - Unpipe the request stream from the parser
+  - Remove all event listeners from the parser
+  - **Resume** the request stream.
+    
+    - Why `req.resume()` and not `req.pause()`?
+      * Pausing causes the internal Node.js TCP stack buffers to overflow, backpressure is propagated
+  through the network, TCP congestion control kicks in, and may probably slow down the network (?)
+      * Resuming doesn't consume any additional memory, and any CPU usage is negligible (networks are much slower than CPUs)
+
+    - Why not `req.destroy()`?
+      * I'm actually not sure. I think it's better to leave it up to the user to decide when and how to close the request. A simple `res.end()` should be enough.
+
 ## [2.0.1] - 2023-07-13
 
 Update documentation for NPM.
