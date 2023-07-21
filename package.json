@@ -3,7 +3,10 @@
   "version": "2.0.1",
   "description": "A modern, asynchronous, flexible and configurable Node.js library for handling file uploads (i.e. multipart/form-data requests), written in TypeScript.",
   "homepage": "https://github.com/rafasofizada/pechkin#readme",
-  "repository": "github:rafasofizada/pechkin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rafasofizada/pechkin.git"
+  },
   "keywords": [
     "multipart",
     "form-data",
@@ -48,5 +51,12 @@
   },
   "engines": {
     "node": ">=13.6.0"
+  },
+  "bugs": {
+    "url": "https://github.com/rafasofizada/pechkin/issues"
+  },
+  "directories": {
+    "example": "examples",
+    "test": "test"
   }
 }
