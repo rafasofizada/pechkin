@@ -58,10 +58,10 @@ describe('FileIterator & Async Iteration Protocol', () => {
         cleanupFn,
       );
 
-      fileIterator.throw(new Error("ignored"));
       fileIterator.throw(new Error("thrown"));
+      fileIterator.throw(new Error("ignored"));
 
-      await expect(fileIterator.next()).rejects.toThrow("ignored");
+      await expect(fileIterator.next()).rejects.toThrow("thrown");
       expect(cleanupFn).toBeCalledTimes(1);
     });
 
