@@ -13,7 +13,7 @@ type BusboyFileIterator = AsyncIterableIterator<BusboyFileEventPayload>;
 export function FileIterator(
   parser: busboy.Busboy,
   config: Internal.CombinedConfig,
-  cleanupFn?: () => void,
+  cleanupFn: Internal.CleanupFn,
 ): Internal.Files {
   const fileCounter = FileCounter(config);
   const busboyIterableIterator: BusboyFileIterator = on(parser, "file");
@@ -21,6 +21,15 @@ export function FileIterator(
   const pechkinIterableIterator = Object.create(
     busboyIterableIterator,
     {
+      /*
+      Error handling:
+
+      Errors inside next() DON'T cause return() (cleanup) to be performed
+      Errors inside for-await-of body DO cause return() (cleanup) to be performed
+
+      Throw() serves only as a signal for the subsequent next() call to throw the error
+      and stop the iterator. for-await-of loop never calls throw() itself.
+      */
       next: { value: nextFnFactory(busboyIterableIterator, config, fileCounter, cleanupFn), writable: true },
       throw: { value: throwFnFactory(busboyIterableIterator), writable: true },
       return: { value: returnFnFactory(busboyIterableIterator, cleanupFn), writable: true },
@@ -47,7 +56,7 @@ function nextFnFactory(
   busboyIterator: AsyncIterableIterator<BusboyFileEventPayload>,
   fileFieldConfig: Internal.FileFieldConfig,
   fileCounter: FileCounter,
-  onError?: () => Promise<unknown> | unknown,
+  cleanupFn: Internal.CleanupFn,
 ) {
   return async function nextFn(): Promise<IteratorResult<Internal.File, undefined>> {
     try {
@@ -66,44 +75,46 @@ function nextFnFactory(
       2. busboyAsyncIterator.next() encountered an error and threw "naturally"
       3. processBusboyFileEventPayload() threw (which shouldn't happen but whatever)
 
-      In case 1, onError() has already been run in throw(), but still it wouldn't hurt to run it again.
-      In case 2 & 3, onError() hasn't been run ever, so we run it here.
+      In case 1, cleanupFn() has already been run in throw(), but still it wouldn't hurt to run it again.
+      In case 2 & 3, cleanupFn() hasn't been run ever, so we run it here.
 
       In all cases, we want to rethrow the error.
       */
       // TODO: if onError can return a promise, we should await it?
       // TODO: Pass error to onError?
-      onError?.();
+      cleanupFn();
       throw error;
     }
   };
 }
 
-function throwFnFactory(busboyIterator: AsyncIterableIterator<BusboyFileEventPayload>) {
-  /*
-  events.on()[Symbol.asyncIterator]().throw() is NOT idempotent.
-  Called multiple times with an error passed as an argument,
-  the LAST error passed will be the one that is thrown.
+/*
+What:
+throwFnFactory() adds error-idempotency on top of throw() using the `thrown` flag.
 
-  `thrown` flag is needed to provide idempotency.
-  TODO: Test the effect of `thrown` flag on error order.
-  */
+Why:
+events.on()[Symbol.asyncIterator]().throw() by itself is NOT idempotent.
+Called multiple times with an error passed as an argument,
+the LAST error passed will be the one that is thrown.
+
+TODO: Test the effect of `thrown` flag on error order.
+*/
+function throwFnFactory(busboyIterator: AsyncIterableIterator<BusboyFileEventPayload>) {
   let thrown = false;
 
   return function throwFn(error: Error) {
     if (thrown) return;
     thrown = true;
-
     busboyIterator.throw!(error);
   };
 }
 
 function returnFnFactory(
   busboyIterator: AsyncIterableIterator<BusboyFileEventPayload>,
-  cleanupFn?: () => Promise<unknown> | unknown,
+  cleanupFn: Internal.CleanupFn,
 ) {
-  return async function returnFn() {
-    await cleanupFn?.();
+  return function returnFn() {
+    cleanupFn();
     return busboyIterator.return!();
   };
 }
@@ -130,67 +141,3 @@ function processBusboyFileEventPayload(
   };
 }
 
-/*
-
-> eIter = events.on(target, event, handler);
-
-unconsumedEvents = [];
-unconsumedPromises = [];
-ERROR = null;
-FINISHED = false;
-
---------------------------------------------
-CASE:
-- next() called BEFORE any event is emitted
-
-for await (const event of eIter)
-  eIter.next()
-    unconsumedEvents.shift() // undefined
-    unconsumedPromises.push(new Promise()) // uP = [ P0 ]
-    <AWAIT 0> ...await uP[0]...
-
-> busboy.emit('file')
-
-eventHandler()
-  unconsumedPromises.shift() // P0, uP = []
-  P0.resolve(<result<event0>>) // { value: event0, done: false }
-
-    <AWAIT 0 CONT> await P0 => { value: event0, done: false }
-
-// IF throw() is called in this case, the P0 awaited by the for-await-of loop
-// will reject and throw. OK. 
-
---------------------------------------------
-CASE:
-- next() called AFTER an 2 events has been emitted
-- throw() called AFTER event1 has been emitted
-
-> busboy.emit('file')
-
-eventHandler()
-  unconsumedPromises.shift() // undefined, =>
-  unconsumedEvents.push(event1) // uE = [ event1 ]
-
-> busboy.emit('partsLimit')
-  > eIter.throw(new Error('partsLimit'))
-    ERROR = new Error('partsLimit')
-
-> busboy.emit('file')
-
-eventHandler()
-  unconsumedPromises.shift() // undefined, =>
-  unconsumedEvents.push(event2) // uE = [ event1, event2 ]
-
-for await (const event of eIter)
-  eIter.next() // uE = [ event1, event2 ]
-    unconsumedEvents.shift() // event1
-
-Execution stack:
-<event0>, <event1>, ..., <eventN>,
-error check,  <-- throw() acts here
-finished (return) check,
-<promise0>, <promise1>, ..., <promiseN>
-| 
-|---- AbortSignal() acts here
-
-*/

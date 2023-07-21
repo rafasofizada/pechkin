@@ -33,11 +33,20 @@ export async function parseFormData(
     ...busboyConfig,
     limits: pechkinConfigToBusboyLimits(finalConfig[Internal.BaseConfig]),
   });
+  
+  let cleanedUp = false;
 
   // TODO: Test effect of cleanup
-  const cleanupFn = () => {
+  function cleanupFn() {
+    // Approach taken by multer
+    // https://github.com/expressjs/multer/blob/25794553989a674f4998b32a061dfc9287b23188/lib/make-middleware.js#L49
+    if (cleanedUp) return;
+    
     request.unpipe(parser);
-  };
+    parser.removeAllListeners();
+    request.resume();
+    cleanedUp = true;
+  }
 
   const fields = FieldsPromise(parser, cleanupFn);
   const files = FileIterator(parser, finalConfig, cleanupFn);

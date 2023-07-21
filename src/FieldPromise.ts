@@ -3,7 +3,7 @@ import busboy from "busboy";
 import { Internal } from "./types";
 import { FieldLimitError, TotalLimitError } from "./error";
 
-export function FieldsPromise(parser: busboy.Busboy, cleanupFn: () => void): Promise<Internal.Fields> {
+export function FieldsPromise(parser: busboy.Busboy, cleanupFn: Internal.CleanupFn): Promise<Internal.Fields> {
   return new Promise<Internal.Fields>((resolve, reject) => {
     const fields: Internal.Fields = {};
 

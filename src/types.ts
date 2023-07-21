@@ -39,4 +39,6 @@ export namespace Internal {
   export type FileFieldSpecificConfig = Pick<Config, "maxFileByteLength" | "maxFileCountPerField" | "abortOnFileByteLengthLimit">;
 
   export type FileFieldConfigOverride = Record<string, Partial<FileFieldSpecificConfig>>;
+
+  export type CleanupFn = (error?: Error) => unknown;
 };
