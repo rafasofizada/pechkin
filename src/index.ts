@@ -37,9 +37,29 @@ export async function parseFormData(
   let cleanedUp = false;
 
   // TODO: Test effect of cleanup
+  /**
+   * cleanupFn runs at every "error point" in the code.
+   * 
+   * Error points in code:
+   * - Field-handling part errors and rejects the FieldsPromise promise
+   * - FileIterator.next() errors:
+   * -- AsyncIterator.next(), created by events::on(parser, 'file'), errors
+   * -- processBusboyFileEventPayload() errors
+   * - FileIterator.return() errors:
+   * -- for-await-of loop body errors and calls return()
+   * 
+   * Cleanup approach: same as in Multer
+   * https://github.com/expressjs/multer/blob/25794553989a674f4998b32a061dfc9287b23188/lib/make-middleware.js#L49
+   * 
+   * - Why resume and not pause?
+   * -- Pausing causes the internal Node.js TCP stack buffers to overflow, backpressure is propagated
+   * through the network, TCP congestion control kicks in, and may probably slow down the network (?)
+   * -- Resuming doesn't consume any additional memory, and any CPU usage is negligible (networks are much slower than CPUs)
+   * 
+   * - Why resume and not destroy?
+   * -- TBD
+   */
   function cleanupFn() {
-    // Approach taken by multer
-    // https://github.com/expressjs/multer/blob/25794553989a674f4998b32a061dfc9287b23188/lib/make-middleware.js#L49
     if (cleanedUp) return;
     
     request.unpipe(parser);
