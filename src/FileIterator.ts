@@ -128,10 +128,10 @@ function processBusboyFileEventPayload(
   fileCounter[field] += 1;
 
   const truncatedStream = new ByteLengthTruncateStream(maxFileByteLength, abortOnFileByteLengthLimit, field);
-  
+
   stream
     .on('error', (error) => {
-      error.message = `Error in busboy file stream for field "${field}": ${error.message}`;
+      error.message = `Error in busboy file stream: ${error.message}`;
       truncatedStream.destroy(error);
     })
     .pipe(truncatedStream);
