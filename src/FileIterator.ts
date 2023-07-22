@@ -127,12 +127,14 @@ function processBusboyFileEventPayload(
   // FileCounter may throw, it's a Proxy!
   fileCounter[field] += 1;
 
-  const lengthLimiter = new ByteLengthTruncateStream(maxFileByteLength, abortOnFileByteLengthLimit, field);
-  const truncatedStream = stream.pipe(lengthLimiter);
-
-  // stream.on('error', (error) => {
-  //   truncatedStream.destroy(error);
-  // });
+  const truncatedStream = new ByteLengthTruncateStream(maxFileByteLength, abortOnFileByteLengthLimit, field);
+  
+  stream
+    .on('error', (error) => {
+      error.message = `Error in busboy file stream for field "${field}": ${error.message}`;
+      truncatedStream.destroy(error);
+    })
+    .pipe(truncatedStream);
 
   return {
     field,
